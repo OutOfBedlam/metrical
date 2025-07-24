@@ -1,23 +1,30 @@
 package main
 
 import (
-	"expvar"
-	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/OutOfBedlam/metric"
-	"github.com/OutOfBedlam/metrical/ps"
+	"github.com/OutOfBedlam/metrical/collect"
+	"github.com/OutOfBedlam/metrical/input/ps"
+	"github.com/OutOfBedlam/metrical/input/runtime"
+	"github.com/OutOfBedlam/metrical/output/svg"
 )
 
 func main() {
-	psCollector := ps.NewCollector(1 * time.Second)
-	psCollector.Start()
-	defer psCollector.Stop()
+	collector := collect.NewCollector(1 * time.Second)
+	collector.AddInput(&ps.PSInput{})
+	collector.AddInput(&runtime.Stats{})
+	collector.Start()
+	defer collector.Stop()
 
-	exporter := &SvgExporter{}
+	exporter := collect.NewExporter(1*time.Second, []string{
+		"metrical:ps:cpu_percent",
+		"metrical:ps:mem_percent",
+		"metrical:runtime:goroutines",
+	})
+	exporter.AddOutput(&svg.SVGOutput{DstDir: "./tmp"}, nil)
 	exporter.Start()
 	defer exporter.Stop()
 
@@ -25,52 +32,4 @@ func main() {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	<-signalCh
-}
-
-type SvgExporter struct {
-	closeCh chan struct{}
-}
-
-func (s *SvgExporter) Start() {
-	s.closeCh = make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-s.closeCh:
-				return
-			case <-time.After(1 * time.Second):
-				ts := expvar.Get("metrical:ps:10s").(*metric.TimeSeries[*ps.Measure])
-				interval := ts.Interval()
-				maxCount := ts.MaxCount()
-				times, measures := ts.Values()
-				values := make([]float64, len(measures))
-				if len(measures) == 0 {
-					continue
-				}
-				for i, m := range measures {
-					values[i] = m.CpuPercent
-				}
-
-				out, err := os.OpenFile("svg_test.svg", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-				if err != nil {
-					panic(err)
-				}
-
-				svg := NewSvg(200, 80)
-				svg.Title = fmt.Sprintf("CPU Usage %s - %.f%%", interval, values[len(values)-1])
-				svg.StrokeWidth = 1.5
-				svg.GridYMin = 0
-				svg.GridYMax = 100
-				svg.GridMaxCount = maxCount
-				if err := svg.Export(out, times, values); err != nil {
-					panic(fmt.Errorf("failed to generate SVG: %v", err))
-				}
-				out.Close()
-			}
-		}
-	}()
-}
-
-func (s *SvgExporter) Stop() {
-	close(s.closeCh)
 }

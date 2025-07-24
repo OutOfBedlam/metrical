@@ -1,4 +1,4 @@
-package main
+package svg
 
 import (
 	"fmt"
@@ -8,20 +8,20 @@ import (
 	"time"
 )
 
-func NewSvg(width, height int) *Svg {
-	return &Svg{
-		Width:           int(width),
-		Height:          int(height),
+func NewCanvas(width, height int) *Canvas {
+	return &Canvas{
+		Width:           width,
+		Height:          height,
 		BackgroundColor: "white",
 		StrokeColor:     "rgba(0,0,0,0.33)",
 		StrokeWidth:     1.5,
 		StrokeLineCap:   "round",
-		GridWidth:       int(width - 2),
-		GridHeight:      int(height - 2),
+		GridWidth:       width - 2,
+		GridHeight:      height - 2,
 	}
 }
 
-type Svg struct {
+type Canvas struct {
 	Title           string
 	Width           int
 	Height          int
@@ -38,7 +38,7 @@ type Svg struct {
 	Values          []float64
 }
 
-func (s Svg) Export(w io.Writer, times []time.Time, values []float64) error {
+func (s Canvas) Export(w io.Writer, times []time.Time, values []float64) error {
 	c := s
 	c.Times = times
 	c.Values = values
@@ -92,12 +92,8 @@ var svgTmpl = textTemplate.Must(textTemplate.New("svg").
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
 "http://www.w3c.org/Graphics/SVG/1.1/DTD/svg1.1dtd">
 <svg width="{{ .Width }}" height="{{ .Height }}" xmlns="http://www.w3.org/2000/svg">
-  <rect x="0" y="0" width="{{ .Width }}" height="{{ .Height }}" fill="{{ .BackgroundColor }}"/>
-  <text x="2" y="2" text-anchor="start" alignment-baseline="hanging" font-size="0.8em" stroke-width="1px" font-family="'Courier New',monospace" stroke="{{ .StrokeColor }}">{{ .Title }}</text>
+  <rect x="0" y="0" width="{{ .Width }}" height="{{ .Height }}" rx="5" ry="5" fill="{{ .BackgroundColor }}"/>
+  <text x="100" y="2" text-anchor="middle" alignment-baseline="hanging" font-size="0.8em" stroke-width="1px" font-family="'Courier New',monospace" stroke="{{ .StrokeColor }}">{{ .Title }}</text>
   <path d="{{svgPath .Times .Values .GridMaxCount .GridWidth .GridHeight .GridYMin .GridYMax }}" fill="none"
 		stroke="{{ .StrokeColor }}" stroke-width="{{ .StrokeWidth }}" stroke-linecap="{{ .StrokeLineCap }}"/>
 </svg>`))
-
-// font-size: 2em;
-// font-weight: bold;
-// font-style: italic;
