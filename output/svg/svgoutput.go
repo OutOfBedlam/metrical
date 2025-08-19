@@ -7,32 +7,94 @@ import (
 	"strings"
 
 	"github.com/OutOfBedlam/metric"
-	"github.com/OutOfBedlam/metrical/collect"
 )
 
 type SVGOutput struct {
 	DstDir string
 }
 
-func (s *SVGOutput) Export(req collect.ExportReq) error {
-	var metricName string = req.Name
-	var ss *metric.TimeSeriesSnapshot[float64] = req.Data
-
-	lastValue := ss.Values[len(ss.Values)-1]
+func (s *SVGOutput) Export(metricName string, ss *metric.Snapshot) error {
 	dstFile := filepath.Join(s.DstDir, fmt.Sprintf("%s.svg", strings.ReplaceAll(metricName, ":", "_")))
 	out, err := os.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
-	svg := NewCanvas(200, 80)
-	svg.Title = fmt.Sprintf("%s - %.f%s", req.Title, lastValue, req.Unit)
-	svg.StrokeWidth = 1.5
-	svg.GridYMin = 0
-	svg.GridYMax = 100
-	svg.GridMaxCount = ss.MaxCount
-	if err := svg.Export(out, ss.Times, ss.Values); err != nil {
+	canvas := CanvasWithSnapshot(ss)
+	canvas.XMLHeader = true
+	if err := canvas.Export(out); err != nil {
 		panic(fmt.Errorf("failed to generate SVG: %v", err))
 	}
 	out.Close()
 	return nil
+}
+
+func CanvasWithSnapshot(ss *metric.Snapshot) *Canvas {
+	values := make([]float64, len(ss.Values))
+	minValues := make([]float64, len(ss.Values))
+	maxValues := make([]float64, len(ss.Values))
+	last := ss.Values[len(ss.Values)-1]
+	lastValue := 0.0
+	if c, ok := last.(*metric.CounterProduct); ok {
+		lastValue = c.Value
+		for i, v := range ss.Values {
+			if v == nil {
+				continue
+			}
+			values[i] = v.(*metric.CounterProduct).Value
+		}
+	} else if g, ok := last.(*metric.GaugeProduct); ok {
+		lastValue = g.Value
+		for i, v := range ss.Values {
+			if v == nil {
+				continue
+			}
+			values[i] = v.(*metric.GaugeProduct).Value
+		}
+	} else if m, ok := last.(*metric.MeterProduct); ok {
+		lastValue = m.Last
+		for i, val := range ss.Values {
+			if val == nil {
+				continue
+			}
+			v := val.(*metric.MeterProduct)
+			if v.Count > 0 {
+				values[i] = v.Sum / float64(v.Count)
+			}
+			minValues[i] = v.Min
+			maxValues[i] = v.Max
+		}
+	} else if h, ok := last.(*metric.HistogramProduct); ok {
+		lastValue = h.Values[0]
+		for i, val := range ss.Values {
+			if val == nil {
+				continue
+			}
+			v := val.(*metric.HistogramProduct)
+			values[i] = v.Values[len(v.Values)/2]
+			minValues[i] = v.Values[0]
+			maxValues[i] = v.Values[len(v.Values)-1]
+		}
+	}
+	svg := NewCanvas(200, 80)
+	if meta, ok := ss.Meta.(metric.FieldInfo); ok {
+		svg.Title = fmt.Sprintf("%s %s", meta.Name, meta.Series)
+		svg.Value = meta.Unit.Format(lastValue, 1)
+		if meta.Unit == metric.UnitPercent {
+			svg.GridYMin = 0
+			svg.GridYMax = 100
+		} else {
+			svg.GridYMargin = 0.5
+		}
+		svg.ValueUnit = meta.Unit
+	}
+	svg.GridXInterval = ss.Interval
+	svg.GridXMaxCount = ss.MaxCount
+	svg.ShowXAxisLabels = true
+	svg.ShowYAxisLabels = true
+	svg.Times = ss.Times
+	svg.Values = values
+	svg.MinValues = minValues
+	svg.MaxValues = maxValues
+
+	return svg
 }

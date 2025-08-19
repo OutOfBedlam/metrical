@@ -30,8 +30,9 @@ func TestSVG(t *testing.T) {
 
 	width, height := 200, 80
 	s := NewCanvas(width, height)
-
-	if err := s.Export(out, times, values); err != nil {
+	s.Times = times
+	s.Values = values
+	if err := s.Export(out); err != nil {
 		t.Fatalf("failed to generate SVG: %v", err)
 	}
 }
