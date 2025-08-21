@@ -137,7 +137,7 @@ func handleMetrics(metricNames []string) func(w http.ResponseWriter, r *http.Req
 
 func getSnapshot(name string, idx int) *metric.Snapshot {
 	if g := expvar.Get(name); g != nil {
-		mts := g.(metric.MetricTimeSeries)
+		mts := g.(metric.MultiTimeSeries)
 		if len(mts) > 0 {
 			return mts[idx].Snapshot()
 		}
@@ -243,7 +243,7 @@ func MiniGraph(ss *metric.Snapshot) template.HTML {
 func SnapshotAll(name string) []*metric.Snapshot {
 	ret := make([]*metric.Snapshot, 0)
 	if g := expvar.Get(name); g != nil {
-		mts := g.(metric.MetricTimeSeries)
+		mts := g.(metric.MultiTimeSeries)
 		for _, ts := range mts {
 			snapshot := ts.Snapshot()
 			if snapshot != nil {
