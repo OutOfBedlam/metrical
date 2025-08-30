@@ -1,5 +1,5 @@
-github.com/OutOfBedlam/metric v0.0.0-20250722041346-b5d70ae03a9c h1:t/wcSossXbe09SUBo0oevziJvhINloHz7ICuGIfl2Qs=
-github.com/OutOfBedlam/metric v0.0.0-20250722041346-b5d70ae03a9c/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
+github.com/OutOfBedlam/metric v0.0.0-20250827074720-0b95216c8876 h1:ssJcYQDILZ6QPW7Y5/v5MH1ls9P3YrSel5gJCWcxDR8=
+github.com/OutOfBedlam/metric v0.0.0-20250827074720-0b95216c8876/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.8.4 h1:CF7LEKg5FFOsASUj0+QwaXf8Ht6TlFxg09+S9wz0omw=

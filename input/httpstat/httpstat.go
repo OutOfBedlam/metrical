@@ -29,11 +29,11 @@ func (sm *ServerMeter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp := &ResponseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 	defer func() {
 		measure := metric.Measurement{Name: "http"}
-		measure.AddField(metric.Field{Name: "requests", Value: 1, Unit: metric.UnitShort, Type: metric.FieldTypeCounter})
-		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Unit: metric.UnitDuration, Type: metric.FieldTypeHistogram(100, 0.5, 0.9, 0.99)})
-		measure.AddField(metric.Field{Name: "write_bytes", Value: float64(rsp.responseBytes), Unit: metric.UnitBytes, Type: metric.FieldTypeMeter})
-		measure.AddField(metric.Field{Name: "read_bytes", Value: float64(reqCounter.total), Unit: metric.UnitBytes, Type: metric.FieldTypeMeter})
-		measure.AddField(metric.Field{Name: rsp.StatusCodeCategory(), Value: 1, Unit: metric.UnitShort, Type: metric.FieldTypeCounter})
+		measure.AddField(metric.Field{Name: "requests", Value: 1, Type: metric.CounterType(metric.UnitShort)})
+		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Type: metric.HistogramType(metric.UnitDuration, 100, 0.5, 0.9, 0.99)})
+		measure.AddField(metric.Field{Name: "write_bytes", Value: float64(rsp.responseBytes), Type: metric.MeterType(metric.UnitBytes)})
+		measure.AddField(metric.Field{Name: "read_bytes", Value: float64(reqCounter.total), Type: metric.MeterType(metric.UnitBytes)})
+		measure.AddField(metric.Field{Name: rsp.StatusCodeCategory(), Value: 1, Type: metric.CounterType(metric.UnitShort)})
 		sm.ch <- measure
 
 		if err := recover(); err != nil {

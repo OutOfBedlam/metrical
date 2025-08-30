@@ -57,8 +57,8 @@ func CanvasWithSnapshot(ss *metric.Snapshot) *Canvas {
 				continue
 			}
 			v := val.(*metric.MeterProduct)
-			if v.Count > 0 {
-				values[i] = v.Sum / float64(v.Count)
+			if v.Samples > 0 {
+				values[i] = v.Sum / float64(v.Samples)
 			}
 			minValues[i] = v.Min
 			maxValues[i] = v.Max

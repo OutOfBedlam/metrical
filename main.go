@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"expvar"
 	"flag"
 	"fmt"
@@ -28,8 +29,9 @@ func main() {
 	flag.StringVar(&httpAddr, "http", "", "HTTP server address (e.g., :3000)")
 	flag.Parse()
 
-	collector := metric.NewCollector(1*time.Second,
-		metric.WithSeries("5 min.", 5*time.Second, 60),
+	collector := metric.NewCollector(
+		metric.WithCollectInterval(1*time.Second),
+		metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProduct),
 		metric.WithSeries("5 hr.", 5*time.Minute, 60),
 		metric.WithSeries("15 hr.", 15*time.Minute, 60),
 		metric.WithExpvarPrefix("metrical"),
@@ -273,8 +275,8 @@ func ProductValue(p metric.Product) float64 {
 	case *metric.GaugeProduct:
 		return v.Value
 	case *metric.MeterProduct:
-		if v.Count > 0 {
-			return v.Sum / float64(v.Count)
+		if v.Samples > 0 {
+			return v.Sum / float64(v.Samples)
 		}
 		return 0
 	case *metric.HistogramProduct:
@@ -300,5 +302,65 @@ func ProductKind(ss *metric.Snapshot) string {
 		return "Histogram"
 	default:
 		return "Unknown"
+	}
+}
+
+func onProduct(pd metric.ProducedData) {
+	m := map[string]any{
+		"NAME": fmt.Sprintf("%s:%s", pd.Measure, pd.Field),
+		"TIME": pd.Time.UnixNano(),
+	}
+	switch p := pd.Value.(type) {
+	case *metric.CounterProduct:
+		m["VALUE"] = p.Value
+		m["COUNT"] = p.Samples
+	case *metric.GaugeProduct:
+		m["VALUE"] = p.Value
+		m["COUNT"] = p.Samples
+		m["SUM"] = p.Sum
+	case *metric.MeterProduct:
+		if p.Samples > 0 {
+			m["VALUE"] = p.Sum / float64(p.Samples)
+		} else {
+			m["VALUE"] = 0
+		}
+		m["COUNT"] = p.Samples
+		m["SUM"] = p.Sum
+		m["LAST"] = p.Last
+		m["FIRST"] = p.First
+		m["MIN"] = p.Min
+		m["MAX"] = p.Max
+	case *metric.HistogramProduct:
+		for i, x := range p.P {
+			if x == 0.5 {
+				m["VALUE"] = p.Values[i]
+			}
+			m[fmt.Sprintf("P%d", int(x*100))] = p.Values[i]
+		}
+		if _, exist := m["VALUE"]; !exist {
+			m["VALUE"] = 0
+		}
+		m["COUNT"] = p.Samples
+	default:
+		fmt.Printf("Unknown product type: %T\n", p)
+		return
+	}
+	n, err := json.Marshal(m)
+	if err != nil {
+		fmt.Printf("Error marshaling product: %v\n", err)
+		return
+	}
+	rsp, err := http.DefaultClient.Post(
+		"http://127.0.0.1:5654/db/write/EXAMPLE",
+		"application/x-ndjson",
+		strings.NewReader(string(n)))
+	if err != nil {
+		fmt.Printf("Error sending product: %v\n", err)
+		return
+	}
+	defer rsp.Body.Close()
+	if rsp.StatusCode != http.StatusOK {
+		fmt.Printf("Error response from server: %s\n", rsp.Status)
+		return
 	}
 }

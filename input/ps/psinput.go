@@ -23,8 +23,7 @@ func Collect() (metric.Measurement, error) {
 	m.Fields = append(m.Fields, metric.Field{
 		Name:  CPU_PERCENT,
 		Value: cpuPercent[0],
-		Unit:  metric.UnitPercent,
-		Type:  metric.FieldTypeMeter,
+		Type:  metric.MeterType(metric.UnitPercent),
 	})
 
 	memStat, err := mem.VirtualMemory()
@@ -34,8 +33,7 @@ func Collect() (metric.Measurement, error) {
 	m.Fields = append(m.Fields, metric.Field{
 		Name:  MEM_PERCENT,
 		Value: memStat.UsedPercent,
-		Unit:  metric.UnitPercent,
-		Type:  metric.FieldTypeMeter,
+		Type:  metric.MeterType(metric.UnitPercent),
 	})
 	return m, nil
 }

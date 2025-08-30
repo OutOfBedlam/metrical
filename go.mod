@@ -3,7 +3,7 @@ module github.com/OutOfBedlam/metrical
 go 1.24.5
 
 require (
-	github.com/OutOfBedlam/metric v0.0.0-20250722041346-b5d70ae03a9c
+	github.com/OutOfBedlam/metric v0.0.0-20250827074720-0b95216c8876
 	github.com/shirou/gopsutil/v4 v4.25.6
 )
 

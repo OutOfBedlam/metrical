@@ -21,14 +21,12 @@ func Collect() (metric.Measurement, error) {
 		{
 			Name:  HeapInuse,
 			Value: float64(memStats.HeapInuse),
-			Unit:  metric.UnitBytes,
-			Type:  metric.FieldTypeGauge,
+			Type:  metric.GaugeType(metric.UnitBytes),
 		},
 		{
 			Name:  GoRoutines,
 			Value: float64(gorutine),
-			Unit:  metric.UnitShort,
-			Type:  metric.FieldTypeMeter,
+			Type:  metric.MeterType(metric.UnitShort),
 		},
 	}
 	return m, nil
