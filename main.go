@@ -25,8 +25,8 @@ func main() {
 	var httpAddr string
 	var outputDir string
 
-	flag.StringVar(&outputDir, "out", "", "Output directory for SVG files")
-	flag.StringVar(&httpAddr, "http", "", "HTTP server address (e.g., :3000)")
+	flag.StringVar(&outputDir, "out", "./tmp", "Output directory for SVG files")
+	flag.StringVar(&httpAddr, "http", ":3000", "HTTP server address (e.g., :3000)")
 	flag.Parse()
 
 	collector := metric.NewCollector(
@@ -68,7 +68,7 @@ func main() {
 		mux.HandleFunc("/metrics", handleMetrics(metricNames))
 		svr := &http.Server{
 			Addr:      httpAddr,
-			Handler:   httpstat.NewHandler(collector.EventChannel(), mux),
+			Handler:   httpstat.NewHandler(collector.C, mux),
 			ConnState: connState,
 		}
 		go func() {
