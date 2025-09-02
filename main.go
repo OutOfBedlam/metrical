@@ -10,12 +10,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/OutOfBedlam/metric"
 	"github.com/OutOfBedlam/metrical/input/httpstat"
+	"github.com/OutOfBedlam/metrical/input/netstat"
 	"github.com/OutOfBedlam/metrical/input/ps"
 	"github.com/OutOfBedlam/metrical/input/runtime"
 	"github.com/OutOfBedlam/metrical/output/svg"
@@ -31,7 +33,8 @@ func main() {
 
 	collector := metric.NewCollector(
 		metric.WithCollectInterval(1*time.Second),
-		metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProduct),
+		//metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProduct),
+		metric.WithSeries("5 min.", 5*time.Second, 60),
 		metric.WithSeries("5 hr.", 5*time.Minute, 60),
 		metric.WithSeries("15 hr.", 15*time.Minute, 60),
 		metric.WithExpvarPrefix("metrical"),
@@ -40,23 +43,12 @@ func main() {
 	)
 	collector.AddInputFunc(ps.Collect)
 	collector.AddInputFunc(runtime.Collect)
+	collector.AddInputFunc(netstat.Collect)
 	collector.Start()
 	defer collector.Stop()
 
-	metricNames := []string{
-		"metrical:ps:cpu_percent",
-		"metrical:ps:mem_percent",
-		"metrical:runtime:goroutines",
-		"metrical:runtime:heap_inuse",
-		"metrical:http:requests",
-		"metrical:http:latency",
-		"metrical:http:status_2xx",
-		"metrical:http:read_bytes",
-		"metrical:http:write_bytes",
-	}
-
 	if outputDir != "" {
-		exporter := metric.NewExporter(1*time.Second, metricNames)
+		exporter := metric.NewExporter(1*time.Second, collector.Names())
 		exporter.AddOutput(&svg.SVGOutput{DstDir: outputDir}, nil)
 		exporter.Start()
 		defer exporter.Stop()
@@ -65,7 +57,7 @@ func main() {
 	// http server
 	if httpAddr != "" {
 		mux := http.NewServeMux()
-		mux.HandleFunc("/metrics", handleMetrics(metricNames))
+		mux.HandleFunc("/metrics", handleMetrics(collector))
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),
@@ -99,8 +91,11 @@ func connState(conn net.Conn, state http.ConnState) {
 	}
 }
 
-func handleMetrics(metricNames []string) func(w http.ResponseWriter, r *http.Request) {
+func handleMetrics(c *metric.Collector) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		metricNames := c.Names()
+		slices.Sort(metricNames)
+
 		w.Header().Set("Content-Type", "text/html")
 		q := r.URL.Query()
 		name := q.Get("n")
