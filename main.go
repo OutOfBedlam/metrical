@@ -33,8 +33,7 @@ func main() {
 
 	collector := metric.NewCollector(
 		metric.WithCollectInterval(1*time.Second),
-		//metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProduct),
-		metric.WithSeries("5 min.", 5*time.Second, 60),
+		metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProductNDJSON),
 		metric.WithSeries("5 hr.", 5*time.Minute, 60),
 		metric.WithSeries("15 hr.", 15*time.Minute, 60),
 		metric.WithExpvarPrefix("metrical"),
@@ -300,7 +299,7 @@ func ProductKind(ss *metric.Snapshot) string {
 	}
 }
 
-func onProduct(pd metric.ProductData) {
+func onProductNDJSON(pd metric.ProductData) {
 	m := map[string]any{
 		"NAME": fmt.Sprintf("%s:%s", pd.Measure, pd.Field),
 		"TIME": pd.Time.UnixNano(),
@@ -308,10 +307,10 @@ func onProduct(pd metric.ProductData) {
 	switch p := pd.Value.(type) {
 	case *metric.CounterProduct:
 		m["VALUE"] = p.Value
-		m["COUNT"] = p.Samples
+		m["SAMPLES"] = p.Samples
 	case *metric.GaugeProduct:
 		m["VALUE"] = p.Value
-		m["COUNT"] = p.Samples
+		m["SAMPLES"] = p.Samples
 		m["SUM"] = p.Sum
 	case *metric.MeterProduct:
 		if p.Samples > 0 {
@@ -319,7 +318,7 @@ func onProduct(pd metric.ProductData) {
 		} else {
 			m["VALUE"] = 0
 		}
-		m["COUNT"] = p.Samples
+		m["SAMPLES"] = p.Samples
 		m["SUM"] = p.Sum
 		m["LAST"] = p.Last
 		m["FIRST"] = p.First
@@ -335,7 +334,7 @@ func onProduct(pd metric.ProductData) {
 		if _, exist := m["VALUE"]; !exist {
 			m["VALUE"] = 0
 		}
-		m["COUNT"] = p.Samples
+		m["SAMPLES"] = p.Samples
 	default:
 		fmt.Printf("Unknown product type: %T\n", p)
 		return
@@ -345,17 +344,23 @@ func onProduct(pd metric.ProductData) {
 		fmt.Printf("Error marshaling product: %v\n", err)
 		return
 	}
-	rsp, err := http.DefaultClient.Post(
-		"http://127.0.0.1:5654/db/write/EXAMPLE",
-		"application/x-ndjson",
-		strings.NewReader(string(n)))
-	if err != nil {
-		fmt.Printf("Error sending product: %v\n", err)
-		return
-	}
-	defer rsp.Body.Close()
-	if rsp.StatusCode != http.StatusOK {
-		fmt.Printf("Error response from server: %s\n", rsp.Status)
-		return
+	if destUrl == "" {
+		fmt.Println(string(n))
+	} else {
+		rsp, err := http.DefaultClient.Post(
+			destUrl,
+			"application/x-ndjson",
+			strings.NewReader(string(n)))
+		if err != nil {
+			fmt.Printf("Error sending product: %v\n", err)
+			return
+		}
+		defer rsp.Body.Close()
+		if rsp.StatusCode != http.StatusOK {
+			fmt.Printf("Error response from server: %s\n", rsp.Status)
+			return
+		}
 	}
 }
+
+var destUrl = "" // "http://127.0.0.1:5654/db/write/EXAMPLE"
