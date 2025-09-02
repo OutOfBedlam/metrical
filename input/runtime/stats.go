@@ -6,12 +6,13 @@ import (
 	"github.com/OutOfBedlam/metric"
 )
 
-var _ metric.InputFunc = Collect
+type GoRuntime struct {
+}
 
 const HeapInuse = "heap_inuse"
 const GoRoutines = "goroutines"
 
-func Collect() (metric.Measurement, error) {
+func (gr GoRuntime) Collect() (metric.Measurement, error) {
 	m := metric.Measurement{Name: "runtime"}
 
 	memStats := goruntime.MemStats{}

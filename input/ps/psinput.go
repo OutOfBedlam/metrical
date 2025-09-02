@@ -8,12 +8,13 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
-var _ metric.InputFunc = Collect
+type PS struct {
+}
 
 const CPU_PERCENT = "cpu_percent"
 const MEM_PERCENT = "mem_percent"
 
-func Collect() (metric.Measurement, error) {
+func (ps PS) Collect() (metric.Measurement, error) {
 	m := metric.Measurement{Name: "ps"}
 
 	cpuPercent, err := cpu.Percent(0, false)

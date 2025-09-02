@@ -34,42 +34,42 @@ func CanvasWithSnapshot(ss *metric.Snapshot) *Canvas {
 	maxValues := make([]float64, len(ss.Values))
 	last := ss.Values[len(ss.Values)-1]
 	lastValue := 0.0
-	if c, ok := last.(*metric.CounterProduct); ok {
+	if c, ok := last.(*metric.CounterValue); ok {
 		lastValue = c.Value
 		for i, v := range ss.Values {
 			if v == nil {
 				continue
 			}
-			values[i] = v.(*metric.CounterProduct).Value
+			values[i] = v.(*metric.CounterValue).Value
 		}
-	} else if g, ok := last.(*metric.GaugeProduct); ok {
+	} else if g, ok := last.(*metric.GaugeValue); ok {
 		lastValue = g.Value
 		for i, v := range ss.Values {
 			if v == nil {
 				continue
 			}
-			values[i] = v.(*metric.GaugeProduct).Value
+			values[i] = v.(*metric.GaugeValue).Value
 		}
-	} else if m, ok := last.(*metric.MeterProduct); ok {
+	} else if m, ok := last.(*metric.MeterValue); ok {
 		lastValue = m.Last
 		for i, val := range ss.Values {
 			if val == nil {
 				continue
 			}
-			v := val.(*metric.MeterProduct)
+			v := val.(*metric.MeterValue)
 			if v.Samples > 0 {
 				values[i] = v.Sum / float64(v.Samples)
 			}
 			minValues[i] = v.Min
 			maxValues[i] = v.Max
 		}
-	} else if h, ok := last.(*metric.HistogramProduct); ok {
+	} else if h, ok := last.(*metric.HistogramValue); ok {
 		lastValue = h.Values[0]
 		for i, val := range ss.Values {
 			if val == nil {
 				continue
 			}
-			v := val.(*metric.HistogramProduct)
+			v := val.(*metric.HistogramValue)
 			values[i] = v.Values[len(v.Values)/2]
 			minValues[i] = v.Values[0]
 			maxValues[i] = v.Values[len(v.Values)-1]

@@ -1,4 +1,4 @@
-package netstat
+package ps
 
 import (
 	"syscall"
@@ -7,9 +7,12 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 )
 
+type NetStat struct {
+}
+
 var gaugeType = metric.GaugeType(metric.UnitShort)
 
-func Collect() (metric.Measurement, error) {
+func (ns NetStat) Collect() (metric.Measurement, error) {
 	m := metric.Measurement{Name: "netstat"}
 
 	stat, err := net.Connections("all")

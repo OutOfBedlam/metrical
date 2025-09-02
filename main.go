@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"expvar"
 	"flag"
 	"fmt"
@@ -17,9 +16,9 @@ import (
 
 	"github.com/OutOfBedlam/metric"
 	"github.com/OutOfBedlam/metrical/input/httpstat"
-	"github.com/OutOfBedlam/metrical/input/netstat"
 	"github.com/OutOfBedlam/metrical/input/ps"
 	"github.com/OutOfBedlam/metrical/input/runtime"
+	"github.com/OutOfBedlam/metrical/output/ndjson"
 	"github.com/OutOfBedlam/metrical/output/svg"
 )
 
@@ -28,21 +27,22 @@ func main() {
 	var outputDir string
 
 	flag.StringVar(&outputDir, "out", "./tmp", "Output directory for SVG files")
-	flag.StringVar(&httpAddr, "http", ":3000", "HTTP server address (e.g., :3000)")
+	flag.StringVar(&httpAddr, "http", "127.0.0.1:3000", "HTTP server address (e.g., :3000)")
 	flag.Parse()
 
 	collector := metric.NewCollector(
-		metric.WithCollectInterval(1*time.Second),
-		metric.WithSeriesListener("5 min.", 5*time.Second, 60, onProductNDJSON),
+		metric.WithInterval(1*time.Second),
+		metric.WithSeries("5 min.", 5*time.Second, 60),
 		metric.WithSeries("5 hr.", 5*time.Minute, 60),
 		metric.WithSeries("15 hr.", 15*time.Minute, 60),
-		metric.WithExpvarPrefix("metrical"),
-		metric.WithReceiverSize(100),
+		metric.WithPrefix("metrical"),
+		metric.WithInputBuffer(100),
 		metric.WithStorage(metric.NewFileStorage(outputDir)),
 	)
-	collector.AddInputFunc(ps.Collect)
-	collector.AddInputFunc(runtime.Collect)
-	collector.AddInputFunc(netstat.Collect)
+	collector.AddInputFunc(runtime.GoRuntime{}.Collect)
+	collector.AddInputFunc(ps.PS{}.Collect)
+	collector.AddInputFunc(ps.NetStat{}.Collect)
+	collector.AddOutputFunc(ndjson.Output{DestUrl: ""}.Export)
 	collector.Start()
 	defer collector.Stop()
 
@@ -56,14 +56,14 @@ func main() {
 	// http server
 	if httpAddr != "" {
 		mux := http.NewServeMux()
-		mux.HandleFunc("/metrics", handleMetrics(collector))
+		mux.HandleFunc("/dashboard", handleMetrics(collector))
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),
 			ConnState: connState,
 		}
 		go func() {
-			fmt.Println("Starting HTTP server on http://127.0.0.1:3000/metrics")
+			fmt.Println("Starting HTTP server on http://127.0.0.1:3000/dashboard")
 			if err := svr.ListenAndServe(); err != nil {
 				if err == http.ErrServerClosed {
 					fmt.Println("HTTP server closed")
@@ -255,25 +255,25 @@ func SnapshotField(ss *metric.Snapshot) metric.FieldInfo {
 	return f
 }
 
-func ProductValueString(p metric.Product, unit metric.Unit) string {
+func ProductValueString(p metric.Value, unit metric.Unit) string {
 	if p == nil {
 		return "null"
 	}
 	return unit.Format(ProductValue(p), 2)
 }
 
-func ProductValue(p metric.Product) float64 {
+func ProductValue(p metric.Value) float64 {
 	switch v := p.(type) {
-	case *metric.CounterProduct:
+	case *metric.CounterValue:
 		return v.Value
-	case *metric.GaugeProduct:
+	case *metric.GaugeValue:
 		return v.Value
-	case *metric.MeterProduct:
+	case *metric.MeterValue:
 		if v.Samples > 0 {
 			return v.Sum / float64(v.Samples)
 		}
 		return 0
-	case *metric.HistogramProduct:
+	case *metric.HistogramValue:
 		if len(v.Values) > 0 {
 			return v.Values[len(v.Values)/2]
 		}
@@ -286,81 +286,15 @@ func ProductValue(p metric.Product) float64 {
 func ProductKind(ss *metric.Snapshot) string {
 	p := ss.Values[0]
 	switch p.(type) {
-	case *metric.CounterProduct:
+	case *metric.CounterValue:
 		return "Counter"
-	case *metric.GaugeProduct:
+	case *metric.GaugeValue:
 		return "Gauge"
-	case *metric.MeterProduct:
+	case *metric.MeterValue:
 		return "Meter"
-	case *metric.HistogramProduct:
+	case *metric.HistogramValue:
 		return "Histogram"
 	default:
 		return "Unknown"
 	}
 }
-
-func onProductNDJSON(pd metric.ProductData) {
-	m := map[string]any{
-		"NAME": fmt.Sprintf("%s:%s", pd.Measure, pd.Field),
-		"TIME": pd.Time.UnixNano(),
-	}
-	switch p := pd.Value.(type) {
-	case *metric.CounterProduct:
-		m["VALUE"] = p.Value
-		m["SAMPLES"] = p.Samples
-	case *metric.GaugeProduct:
-		m["VALUE"] = p.Value
-		m["SAMPLES"] = p.Samples
-		m["SUM"] = p.Sum
-	case *metric.MeterProduct:
-		if p.Samples > 0 {
-			m["VALUE"] = p.Sum / float64(p.Samples)
-		} else {
-			m["VALUE"] = 0
-		}
-		m["SAMPLES"] = p.Samples
-		m["SUM"] = p.Sum
-		m["LAST"] = p.Last
-		m["FIRST"] = p.First
-		m["MIN"] = p.Min
-		m["MAX"] = p.Max
-	case *metric.HistogramProduct:
-		for i, x := range p.P {
-			if x == 0.5 {
-				m["VALUE"] = p.Values[i]
-			}
-			m[fmt.Sprintf("P%d", int(x*100))] = p.Values[i]
-		}
-		if _, exist := m["VALUE"]; !exist {
-			m["VALUE"] = 0
-		}
-		m["SAMPLES"] = p.Samples
-	default:
-		fmt.Printf("Unknown product type: %T\n", p)
-		return
-	}
-	n, err := json.Marshal(m)
-	if err != nil {
-		fmt.Printf("Error marshaling product: %v\n", err)
-		return
-	}
-	if destUrl == "" {
-		fmt.Println(string(n))
-	} else {
-		rsp, err := http.DefaultClient.Post(
-			destUrl,
-			"application/x-ndjson",
-			strings.NewReader(string(n)))
-		if err != nil {
-			fmt.Printf("Error sending product: %v\n", err)
-			return
-		}
-		defer rsp.Body.Close()
-		if rsp.StatusCode != http.StatusOK {
-			fmt.Printf("Error response from server: %s\n", rsp.Status)
-			return
-		}
-	}
-}
-
-var destUrl = "" // "http://127.0.0.1:5654/db/write/EXAMPLE"
