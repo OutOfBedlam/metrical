@@ -305,7 +305,7 @@ func ProductKind(ss *metric.Snapshot) string {
 	}
 }
 
-func onProduct(pd metric.ProducedData) {
+func onProduct(pd metric.ProductData) {
 	m := map[string]any{
 		"NAME": fmt.Sprintf("%s:%s", pd.Measure, pd.Field),
 		"TIME": pd.Time.UnixNano(),

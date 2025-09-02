@@ -77,7 +77,7 @@ func (w *ResponseWriterWrapper) StatusCodeCategory() string {
 	case sc >= 500:
 		return "status_5xx"
 	default:
-		return "satus_unknown"
+		return "status_unknown"
 	}
 }
 
