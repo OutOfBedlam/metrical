@@ -1,23 +1,23 @@
-package runtime
+package gostat
 
 import (
-	goruntime "runtime"
+	"runtime"
 
 	"github.com/OutOfBedlam/metric"
 )
 
-type GoRuntime struct {
+type Runtime struct {
 }
 
 const HeapInuse = "heap_inuse"
 const GoRoutines = "goroutines"
 
-func (gr GoRuntime) Collect() (metric.Measurement, error) {
+func (gr Runtime) Collect() (metric.Measurement, error) {
 	m := metric.Measurement{Name: "runtime"}
 
-	memStats := goruntime.MemStats{}
-	goruntime.ReadMemStats(&memStats)
-	gorutine := goruntime.NumGoroutine()
+	memStats := runtime.MemStats{}
+	runtime.ReadMemStats(&memStats)
+	gorutine := runtime.NumGoroutine()
 	m.Fields = []metric.Field{
 		{
 			Name:  HeapInuse,

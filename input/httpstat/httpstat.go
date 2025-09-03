@@ -1,6 +1,7 @@
 package httpstat
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -22,6 +23,10 @@ func NewHandler(ch chan<- metric.Measurement, handler http.Handler) *ServerMeter
 	}
 }
 
+var counterType = metric.CounterType(metric.UnitShort)
+var bytesMeterType = metric.MeterType(metric.UnitBytes)
+var histogramType = metric.HistogramType(metric.UnitDuration)
+
 func (sm *ServerMeter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	tick := time.Now()
 	reqCounter := &ByteCounter{r: r.Body}
@@ -29,11 +34,11 @@ func (sm *ServerMeter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rsp := &ResponseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 	defer func() {
 		measure := metric.Measurement{Name: "http"}
-		measure.AddField(metric.Field{Name: "requests", Value: 1, Type: metric.CounterType(metric.UnitShort)})
-		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Type: metric.HistogramType(metric.UnitDuration, 100, 0.5, 0.9, 0.99)})
-		measure.AddField(metric.Field{Name: "write_bytes", Value: float64(rsp.responseBytes), Type: metric.MeterType(metric.UnitBytes)})
-		measure.AddField(metric.Field{Name: "read_bytes", Value: float64(reqCounter.total), Type: metric.MeterType(metric.UnitBytes)})
-		measure.AddField(metric.Field{Name: rsp.StatusCodeCategory(), Value: 1, Type: metric.CounterType(metric.UnitShort)})
+		measure.AddField(metric.Field{Name: "requests", Value: 1, Type: counterType})
+		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Type: histogramType})
+		measure.AddField(metric.Field{Name: "write_bytes", Value: float64(rsp.responseBytes), Type: bytesMeterType})
+		measure.AddField(metric.Field{Name: "read_bytes", Value: float64(reqCounter.total), Type: bytesMeterType})
+		measure.AddField(metric.Field{Name: fmt.Sprintf("status_%dxx", rsp.statusCode/100), Value: 1, Type: counterType})
 		sm.ch <- measure
 
 		if err := recover(); err != nil {
@@ -62,23 +67,6 @@ func (w *ResponseWriterWrapper) Write(b []byte) (int, error) {
 func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
 	w.ResponseWriter.WriteHeader(statusCode)
 	w.statusCode = statusCode
-}
-
-func (w *ResponseWriterWrapper) StatusCodeCategory() string {
-	switch sc := w.statusCode; {
-	case sc >= 100 && sc < 200:
-		return "status_1xx"
-	case sc >= 200 && sc < 300:
-		return "status_2xx"
-	case sc >= 300 && sc < 400:
-		return "status_3xx"
-	case sc >= 400 && sc < 500:
-		return "status_4xx"
-	case sc >= 500:
-		return "status_5xx"
-	default:
-		return "status_unknown"
-	}
 }
 
 type ByteCounter struct {

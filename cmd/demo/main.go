@@ -15,19 +15,22 @@ import (
 	"time"
 
 	"github.com/OutOfBedlam/metric"
+	"github.com/OutOfBedlam/metrical/export"
+	"github.com/OutOfBedlam/metrical/export/svg"
+	"github.com/OutOfBedlam/metrical/input/gostat"
 	"github.com/OutOfBedlam/metrical/input/httpstat"
 	"github.com/OutOfBedlam/metrical/input/ps"
-	"github.com/OutOfBedlam/metrical/input/runtime"
 	"github.com/OutOfBedlam/metrical/output/ndjson"
-	"github.com/OutOfBedlam/metrical/output/svg"
 )
 
 func main() {
 	var httpAddr string
-	var outputDir string
+	var storeDir string
+	var exportDir string
 
-	flag.StringVar(&outputDir, "out", "./tmp", "Output directory for SVG files")
 	flag.StringVar(&httpAddr, "http", "127.0.0.1:3000", "HTTP server address (e.g., :3000)")
+	flag.StringVar(&storeDir, "store", "./tmp", "storage directory for metrics")
+	flag.StringVar(&exportDir, "export", "", "Export directory for SVG files")
 	flag.Parse()
 
 	collector := metric.NewCollector(
@@ -37,18 +40,18 @@ func main() {
 		metric.WithSeries("15 hr.", 15*time.Minute, 60),
 		metric.WithPrefix("metrical"),
 		metric.WithInputBuffer(100),
-		metric.WithStorage(metric.NewFileStorage(outputDir)),
+		metric.WithStorage(metric.NewFileStorage(storeDir)),
 	)
-	collector.AddInputFunc(runtime.GoRuntime{}.Collect)
+	collector.AddInputFunc(gostat.Runtime{}.Collect)
 	collector.AddInputFunc(ps.PS{}.Collect)
 	collector.AddInputFunc(ps.NetStat{}.Collect)
 	collector.AddOutputFunc(ndjson.Output{DestUrl: ""}.Export)
 	collector.Start()
 	defer collector.Stop()
 
-	if outputDir != "" {
-		exporter := metric.NewExporter(1*time.Second, collector.Names())
-		exporter.AddOutput(&svg.SVGOutput{DstDir: outputDir}, nil)
+	if exportDir != "" {
+		exporter := export.NewExporter(1*time.Second, collector.Names())
+		exporter.AddOutput(&svg.SVGOutput{DstDir: exportDir}, nil)
 		exporter.Start()
 		defer exporter.Stop()
 	}
@@ -56,14 +59,18 @@ func main() {
 	// http server
 	if httpAddr != "" {
 		mux := http.NewServeMux()
-		mux.HandleFunc("/dashboard", handleMetrics(collector))
+		mux.HandleFunc("/dashboard", handleDashboard(collector))
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),
 			ConnState: connState,
 		}
 		go func() {
-			fmt.Println("Starting HTTP server on http://127.0.0.1:3000/dashboard")
+			addr := httpAddr
+			if strings.HasPrefix(addr, ":") {
+				addr = "127.0.0.1" + addr
+			}
+			fmt.Printf("Starting HTTP server on http://%s/dashboard\n", addr)
 			if err := svr.ListenAndServe(); err != nil {
 				if err == http.ErrServerClosed {
 					fmt.Println("HTTP server closed")
@@ -90,7 +97,7 @@ func connState(conn net.Conn, state http.ConnState) {
 	}
 }
 
-func handleMetrics(c *metric.Collector) func(w http.ResponseWriter, r *http.Request) {
+func handleDashboard(c *metric.Collector) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		metricNames := c.Names()
 		slices.Sort(metricNames)
