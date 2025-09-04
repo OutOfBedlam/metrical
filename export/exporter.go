@@ -10,7 +10,7 @@ import (
 )
 
 type Output interface {
-	Export(name string, data *metric.Snapshot) error
+	Export(name string, times []time.Time, values []metric.Value, fnfo metric.FieldInfo, interval time.Duration, maxCount int) error
 }
 
 type OutputWrapper struct {
@@ -86,34 +86,32 @@ func (s *Exporter) exportAll(tsIdx int) error {
 }
 
 func (s *Exporter) Export(metricName string, tsIdx int) error {
-	var ss *metric.Snapshot
-	var name string
-	var data *metric.Snapshot
 	for _, ow := range s.ows {
 		if !ow.filter(metricName) {
 			continue
 		}
-		if ss == nil {
-			var err error
-			ss, err = snapshot(metricName, tsIdx)
-			if err != nil {
-				return err
-			}
-			if ss == nil || len(ss.Values) == 0 {
-				// If the metric is nil or has no values, skip
-				break
-			}
-			name = fmt.Sprintf("%s:%d", metricName, tsIdx)
-			data = ss
+		ts, err := getTimeseries(metricName, tsIdx)
+		if err != nil {
+			return err
 		}
-		if err := ow.output.Export(name, data); err != nil {
+		name := fmt.Sprintf("%s:%d", metricName, tsIdx)
+		times, values := ts.LastN(0)
+		if len(times) == 0 {
+			// If the metric is nil or has no values, skip
+			continue
+		}
+		interval := ts.Interval()
+		maxCount := ts.MaxCount()
+		fnfo := ts.Meta().(metric.FieldInfo)
+		// Export the data using the output
+		if err := ow.output.Export(name, times, values, fnfo, interval, maxCount); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func snapshot(metricName string, idx int) (*metric.Snapshot, error) {
+func getTimeseries(metricName string, idx int) (*metric.TimeSeries, error) {
 	if ev := expvar.Get(metricName); ev != nil {
 		mts, ok := ev.(metric.MultiTimeSeries)
 		if !ok {
@@ -123,7 +121,7 @@ func snapshot(metricName string, idx int) (*metric.Snapshot, error) {
 			return nil, fmt.Errorf("index %d out of range for metric %s with %d time series",
 				idx, metricName, len(mts))
 		}
-		return mts[idx].Snapshot(), nil
+		return mts[idx], nil
 	}
 	return nil, metric.ErrMetricNotFound
 }

@@ -45,7 +45,11 @@ func main() {
 	collector.AddInputFunc(gostat.Runtime{}.Collect)
 	collector.AddInputFunc(ps.PS{}.Collect)
 	collector.AddInputFunc(ps.NetStat{}.Collect)
-	collector.AddOutputFunc(ndjson.Output{DestUrl: ""}.Export)
+	collector.AddOutputFunc(
+		metric.DenyNameFilter(ndjson.Output{DestUrl: ""}.Export,
+			"netstat:tcp_last_ack", "netstat:tcp_none", "netstat:tcp_time_wait", "netstat:tcp_closing",
+		),
+	)
 	collector.Start()
 	defer collector.Stop()
 
@@ -58,8 +62,11 @@ func main() {
 
 	// http server
 	if httpAddr != "" {
+		metricNames := collector.Names()
+		slices.Sort(metricNames)
+
 		mux := http.NewServeMux()
-		mux.HandleFunc("/dashboard", handleDashboard(collector))
+		mux.HandleFunc("/dashboard", handleDashboard(metricNames))
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),
@@ -97,11 +104,8 @@ func connState(conn net.Conn, state http.ConnState) {
 	}
 }
 
-func handleDashboard(c *metric.Collector) func(w http.ResponseWriter, r *http.Request) {
+func handleDashboard(metricNames []string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		metricNames := c.Names()
-		slices.Sort(metricNames)
-
 		w.Header().Set("Content-Type", "text/html")
 		q := r.URL.Query()
 		name := q.Get("n")
@@ -124,8 +128,9 @@ func handleDashboard(c *metric.Collector) func(w http.ResponseWriter, r *http.Re
 			data.MetricNames = metricNames
 		} else {
 			data.MetricNames = []string{name}
-			data.Snapshot = getSnapshot(name, idx)
-			if data.Snapshot == nil {
+			data.Times, data.Values, data.Meta = getSnapshot(name, idx)
+			data.Detail = true
+			if len(data.Times) == 0 {
 				http.Error(w, "Metric not found", http.StatusNotFound)
 				return
 			}
@@ -138,24 +143,31 @@ func handleDashboard(c *metric.Collector) func(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func getSnapshot(name string, idx int) *metric.Snapshot {
+func getSnapshot(name string, idx int) ([]time.Time, []metric.Value, metric.FieldInfo) {
 	if g := expvar.Get(name); g != nil {
 		mts := g.(metric.MultiTimeSeries)
-		if len(mts) > 0 {
-			return mts[idx].Snapshot()
+		if idx >= 0 && idx < len(mts) {
+			ts := mts[idx]
+			meta := ts.Meta().(metric.FieldInfo)
+			times, values := ts.All()
+			return times, values, meta
 		}
 	}
-	return nil
+	return nil, nil, metric.FieldInfo{}
 }
 
 type Data struct {
+	// for index view
 	MetricNames []string
-	Snapshot    *metric.Snapshot
+	// for detail view
+	Detail bool
+	Meta   metric.FieldInfo
+	Times  []time.Time
+	Values []metric.Value
 }
 
 var tmplFuncMap = template.FuncMap{
 	"snapshotAll":        SnapshotAll,
-	"snapshotField":      SnapshotField,
 	"productValueString": ProductValueString,
 	"productKind":        ProductKind,
 	"miniGraph":          MiniGraph,
@@ -194,7 +206,7 @@ var tmplIndex = template.Must(template.New("index").Funcs(tmplFuncMap).
 </head>
 <body>
 <h1>Metrics</h1>
-{{ if .Snapshot }}
+{{ if .Detail }}
 	{{ template "doDetail" . }}
 {{ else }}
 	{{ template "doMiniGraph" . }}
@@ -216,19 +228,20 @@ var tmplIndex = template.Must(template.New("index").Funcs(tmplFuncMap).
 {{ end }}
 
 {{ define "doDetail" }}
- 	{{ $ss := .Snapshot }}
-	{{ $field := snapshotField $ss }}
-	<h2>{{ $field.Name }} ({{ $ss | productKind }})</h2>
+	{{ $meta := .Meta }}
+	{{ $times := .Times }}
+	{{ $values := .Values }}
+	<h2>{{ $meta.Name }} ({{ index $values 0 | productKind }})</h2>
 	<table>
 		<tr>
 			<th>Time</th>
 			<th>Value</th>
 			<th>JSON</th>
 		</tr>
-		{{ range $idx, $val := $ss.Values }}
+		{{ range $idx, $val := .Values }}
 		<tr>
-		<td>{{ index $ss.Times $idx | formatTime }}</td>
-		<td>{{ productValueString $val $field.Unit }}</td>
+		<td>{{ index $times $idx | formatTime }}</td>
+		<td>{{ productValueString $val $meta.Unit }}</td>
 		<td>{{ $val }}</td>
 		</tr>
 		{{end}}
@@ -236,30 +249,39 @@ var tmplIndex = template.Must(template.New("index").Funcs(tmplFuncMap).
 {{ end }}
 `))
 
-func MiniGraph(ss *metric.Snapshot) template.HTML {
-	canvas := svg.CanvasWithSnapshot(ss)
+type Snapshot struct {
+	Times    []time.Time
+	Values   []metric.Value
+	Interval time.Duration
+	MaxCount int
+	Meta     metric.FieldInfo
+}
+
+func MiniGraph(ss Snapshot) template.HTML {
+	canvas := svg.CanvasWithSnapshot(ss.Times, ss.Values, ss.Meta, ss.Interval, ss.MaxCount)
 	buff := &strings.Builder{}
 	canvas.Export(buff)
 	return template.HTML(buff.String())
 }
 
-func SnapshotAll(name string) []*metric.Snapshot {
-	ret := make([]*metric.Snapshot, 0)
+func SnapshotAll(name string) []Snapshot {
+	ret := make([]Snapshot, 0)
 	if g := expvar.Get(name); g != nil {
 		mts := g.(metric.MultiTimeSeries)
 		for _, ts := range mts {
-			snapshot := ts.Snapshot()
-			if snapshot != nil {
-				ret = append(ret, snapshot)
+			times, values := ts.All()
+			if len(times) > 0 {
+				ret = append(ret, Snapshot{
+					Times:    times,
+					Values:   values,
+					Interval: ts.Interval(),
+					MaxCount: ts.MaxCount(),
+					Meta:     ts.Meta().(metric.FieldInfo),
+				})
 			}
 		}
 	}
 	return ret
-}
-
-func SnapshotField(ss *metric.Snapshot) metric.FieldInfo {
-	f, _ := ss.Field()
-	return f
 }
 
 func ProductValueString(p metric.Value, unit metric.Unit) string {
@@ -290,9 +312,8 @@ func ProductValue(p metric.Value) float64 {
 	}
 }
 
-func ProductKind(ss *metric.Snapshot) string {
-	p := ss.Values[0]
-	switch p.(type) {
+func ProductKind(value metric.Value) string {
+	switch value.(type) {
 	case *metric.CounterValue:
 		return "Counter"
 	case *metric.GaugeValue:
