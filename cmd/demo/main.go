@@ -42,6 +42,8 @@ func main() {
 	collector.AddInputFunc(gostat.Runtime{}.Collect)
 	collector.AddInputFunc(ps.PS{}.Collect)
 	collector.AddInputFunc(ps.NetStat{}.Collect)
+	psNet := &ps.Net{Interfaces: []string{"eth*"}}
+	collector.AddInputFunc(psNet.Collect)
 	// collector.AddOutputFunc(
 	// 	metric.DenyNameFilter(ndjson.Output{DestUrl: ""}.Export,
 	// 		"netstat:tcp_last_ack", "netstat:tcp_none", "netstat:tcp_time_wait", "netstat:tcp_closing",
@@ -59,8 +61,9 @@ func main() {
 
 	// http server
 	if httpAddr != "" {
+		dash := charts.NewDashboard(collector.PublishNames, collector.SeriesNames())
 		mux := http.NewServeMux()
-		mux.HandleFunc("/dashboard", charts.HandleDashboard(collector.PublishNames, collector.SeriesNames()))
+		mux.HandleFunc("/dashboard", dash.Handle)
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),

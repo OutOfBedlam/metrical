@@ -36,8 +36,8 @@ func (sm *ServerMeter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		measure := metric.Measurement{Name: "http"}
 		measure.AddField(metric.Field{Name: "requests", Value: 1, Type: counterType})
 		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Type: histogramType})
-		measure.AddField(metric.Field{Name: "write_bytes", Value: float64(rsp.responseBytes), Type: bytesCounterType})
-		measure.AddField(metric.Field{Name: "read_bytes", Value: float64(reqCounter.total), Type: bytesCounterType})
+		measure.AddField(metric.Field{Name: "bytes_sent", Value: float64(rsp.responseBytes), Type: bytesCounterType})
+		measure.AddField(metric.Field{Name: "bytes_recv", Value: float64(reqCounter.total), Type: bytesCounterType})
 		measure.AddField(metric.Field{Name: fmt.Sprintf("status_%dxx", rsp.statusCode/100), Value: 1, Type: counterType})
 		sm.ch <- measure
 

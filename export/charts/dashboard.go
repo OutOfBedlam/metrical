@@ -14,8 +14,8 @@ import (
 	"github.com/OutOfBedlam/metric"
 )
 
-func HandleDashboard(nameProvider func() []string, series []string) func(w http.ResponseWriter, r *http.Request) {
-	data := Dashboard{
+func NewDashboard(nameProvider func() []string, series []string) *Dashboard {
+	d := &Dashboard{
 		nameProvider: nameProvider,
 		Series:       series,
 		Options: Options{
@@ -87,7 +87,7 @@ func HandleDashboard(nameProvider func() []string, series []string) func(w http.
 			},
 		},
 	}
-	return data.Handle
+	return d
 }
 
 type Dashboard struct {
@@ -161,7 +161,7 @@ func (d Dashboard) HandleData(w http.ResponseWriter, r *http.Request) {
 	if _, err := fmt.Sscanf(tsIdxStr, "%d", &tsIdx); err != nil {
 		tsIdx = 0
 	}
-	ss, _ := getSnapshot(metricName, tsIdx)
+	ss, ssExists := getSnapshot(metricName, tsIdx)
 	series := ss.Series()
 
 	var seriesSingleOrArray any
@@ -171,12 +171,15 @@ func (d Dashboard) HandleData(w http.ResponseWriter, r *http.Request) {
 		seriesSingleOrArray = series
 	}
 
-	subText := ss.Meta.Series + " | " + ss.Meta.Period.String()
-	if strings.HasSuffix(subText, "m0s") {
-		subText = strings.TrimSuffix(subText, "0s")
-	}
-	if strings.HasSuffix(subText, "h0m") {
-		subText = strings.TrimSuffix(subText, "0m")
+	subText := "Metric not found"
+	if ssExists {
+		subText = ss.Meta.Series + " | " + ss.Meta.Period.String()
+		if strings.HasSuffix(subText, "m0s") {
+			subText = strings.TrimSuffix(subText, "0s")
+		}
+		if strings.HasSuffix(subText, "h0m") {
+			subText = strings.TrimSuffix(subText, "0m")
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -249,7 +252,7 @@ func (ss Snapshot) Series() []Series {
 			{
 				Name:       ss.Meta.Name,
 				Data:       make([]Item, len(ss.Times)),
-				Type:       "line",
+				Type:       "bar",
 				Smooth:     true,
 				ShowSymbol: false,
 				AreaStyle: H{
