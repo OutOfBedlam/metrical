@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    {{- $opt := .Options -}}
+    {{- $opt := .Option -}}
     {{- $seriesIdx := .SeriesIdx -}}
 	<meta charset="UTF-8">
     {{- range $opt.JsSrc }}
@@ -11,7 +11,14 @@
         {{ $opt.StyleCSS }}
     </style>
     <script>
-        function bytesFormatter(value, dataIndex) {
+        function trimRight(s) {
+            // Regexp matches .00, .0, and .[0-9]0 at the end of the string
+            if (!s) return s;
+            return s.replace(/(\.00|\.0|(\.\d)0)$/g, '$2');
+        }
+        function bytesFormatterYAxis(value, dataIndex) { return bytesFormatter0(value, dataIndex, true); }
+        function bytesFormatter(value, dataIndex) { return bytesFormatter0(value, dataIndex, false); }
+        function bytesFormatter0(value, dataIndex, forYAxis) {
             if( value == null || (Array.isArray(value) && value.length == 0)) return null;
             if (value === 0) return '0 B';
             const k = 1024;
@@ -20,23 +27,35 @@
             if( i < 0 || i >= sizes.length ) {
                 i = 0;
             }
-            return parseFloat((value / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            let lbl = parseFloat((value / Math.pow(k, i)).toFixed(2)).toFixed(2);
+            if (forYAxis) {
+                lbl = trimRight(lbl);
+            }
+            return lbl + ' ' + sizes[i];
         }
-        function durationFormatter(value, dataIndex) {
+        function durationFormatterYAxis(value, dataIndex) { return durationFormatter0(value, dataIndex, true); }
+        function durationFormatter(value, dataIndex) { return durationFormatter0(value, dataIndex, false); }
+        function durationFormatter0(value, dataIndex, forYAxis) {
             if( value == null || (Array.isArray(value) && value.length == 0)) return null;
             if (value < 1e3) {
-                return value.toFixed(2) + ' ns';
+                return (forYAxis ? trimRight(value.toFixed(2)) : value.toFixed(2)) + ' ns';
             } else if (value < 1e6) {
-                return (value / 1e3).toFixed(2) + ' µs';
+                return (forYAxis ? trimRight((value / 1e3).toFixed(2)) : (value / 1e3).toFixed(2)) + ' µs';
             } else if (value < 1e9) {
-                return (value / 1e6).toFixed(2) + ' ms';
+                return (forYAxis ? trimRight((value / 1e6).toFixed(2)) : (value / 1e6).toFixed(2)) + ' ms';
             } else {
-                return (value / 1e9).toFixed(2) + ' s';
+                return (forYAxis ? trimRight((value / 1e9).toFixed(2)) : (value / 1e9).toFixed(2)) + ' s';
             }
         }
-        function percentFormatter(value, dataIndex) {
+        function percentFormatterYAxis(value, dataIndex) { return percentFormatter0(value, dataIndex, true); }
+        function percentFormatter(value, dataIndex) { return percentFormatter0(value, dataIndex, false); }
+        function percentFormatter0(value, dataIndex, yAxis) {
             if( value == null || (Array.isArray(value) && value.length == 0)) return null;
-            return value.toFixed(2) + ' %';
+            let lbl = value.toFixed(2);
+            if (yAxis) {
+                lbl = trimRight(lbl);
+            }
+            return lbl + ' %';
         }
         function shortFormatter(value, dataIndex) {
             if( value == null || (Array.isArray(value) && value.length == 0)) return null;
@@ -45,64 +64,78 @@
         }
         function setFormatter(opt, meta) {
             let valueFormatter = null;
+            let labelFormatter = null;
             switch(meta.unit) {
             case 'Bytes':
                 valueFormatter = bytesFormatter;
+                labelFormatter = bytesFormatterYAxis;
                 break;
             case 'Duration':
                 valueFormatter = durationFormatter;
+                labelFormatter = durationFormatterYAxis;
                 break;
             case 'Percent':
                 valueFormatter = percentFormatter;
+                labelFormatter = percentFormatterYAxis;
                 break;
             case 'Short':
                 valueFormatter = shortFormatter;
+                labelFormatter = shortFormatter;
                 break;
             }
             opt.tooltip.valueFormatter = valueFormatter;
             if(opt.yAxis.axisLabel) {
-                opt.yAxis.axisLabel.formatter = valueFormatter;
+                opt.yAxis.axisLabel.formatter = labelFormatter;
             } else {
-                opt.yAxis.axisLabel = { formatter: valueFormatter };
+                opt.yAxis.axisLabel = { formatter: labelFormatter };
             }
         }
     </script>
 </head>
 <body>
-{{- if gt (len .Series) 1 -}}
+{{- if gt (len .Timeseries) 1 -}}
     <div class="series-tabs">
-        {{- range $i, $s := .Series }}
+        {{- range $i, $s := .Timeseries }}
             {{- if $i }}, {{ end -}}
             <a href="{{$opt.BasePath}}?tsIdx={{$i}}"
-               class="tab{{if eq $i $.SeriesIdx}} active{{end}}">{{$s}}</a>
+               class="tab{{if eq $i $.SeriesIdx}} active{{end}}">{{ $s | seriesTitle }} </a>
         {{- end }}
     </div>
 {{- end }}
+<script>
+    var refreshFunctions = [];
+    {{ $ser := index .Timeseries .SeriesIdx }}
+    const seriesInterval = {{ $ser.Period.Milliseconds }};
+    const samplingInterval = {{ $.SamplingInterval.Milliseconds }};
+    let interval = seriesInterval;
+    if (interval < samplingInterval) {
+        interval = samplingInterval;
+    } else if (interval > samplingInterval * 10) {
+        interval = samplingInterval * 10;
+    }
+    interval = samplingInterval;
+    setInterval(()=>{
+        refreshFunctions.forEach(f => f());
+    }, interval);
+</script>
 <div class="container">
-{{- range $n, $name := .MetricNames }}
-	<div id="{{$name}}" class="item"></div>
+{{- range $n, $panel := .Panels }}
+	<div id="{{$panel.ID}}" class="panel"></div>
 	<script type="text/javascript">
 	(() => {
-		var chartDom = document.getElementById('{{$name}}');
+		var chartDom = document.getElementById('{{$panel.ID}}');
 		var myChart = echarts.init(chartDom, 'dark');
 		var option = {};
-		var initFetch = false;
 		function fetchData() {
-			fetch("{{$opt.BasePath}}?metric={{$name}}&tsIdx={{$seriesIdx}}")
-				.then(response => response.json())
-				.then(data => {
-                    setFormatter(data.chartOption, data.meta);
-					myChart.setOption(data.chartOption);
-					if (!initFetch) {
-						initFetch = true;
-						if (data.interval < 1000) {
-							data.interval = 1000;
-						}
-						setInterval(fetchData, data.interval);
-					}
-				});
+			fetch("{{$opt.BasePath}}?id={{$panel.ID}}&tsIdx={{$seriesIdx}}")
+            .then(response => response.json())
+            .then(data => {
+                setFormatter(data.chartOption, data.meta);
+                myChart.setOption(data.chartOption);
+            });
 		}
 		fetchData();
+        refreshFunctions.push(fetchData);
     })();
 	</script>
 {{- end }}

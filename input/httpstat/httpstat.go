@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"runtime/debug"
 	"time"
 
 	"github.com/OutOfBedlam/metric"
@@ -54,6 +55,7 @@ func (sm *ServerMeter) String() string {
 
 type ResponseWriterWrapper struct {
 	http.ResponseWriter
+	headerWritten bool
 	responseBytes int
 	statusCode    int
 }
@@ -65,6 +67,12 @@ func (w *ResponseWriterWrapper) Write(b []byte) (int, error) {
 }
 
 func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
+	if w.headerWritten {
+		// http: superfluous response.WriteHeader call
+		debug.PrintStack()
+		return
+	}
+	w.headerWritten = true
 	w.ResponseWriter.WriteHeader(statusCode)
 	w.statusCode = statusCode
 }
