@@ -13,7 +13,6 @@ import (
 
 	"github.com/OutOfBedlam/metric"
 	"github.com/OutOfBedlam/metrical/export"
-	"github.com/OutOfBedlam/metrical/export/charts"
 	"github.com/OutOfBedlam/metrical/export/svg"
 	"github.com/OutOfBedlam/metrical/input/gostat"
 	"github.com/OutOfBedlam/metrical/input/httpstat"
@@ -31,10 +30,11 @@ func main() {
 	flag.Parse()
 
 	collector := metric.NewCollector(
-		metric.WithInterval(1*time.Second),
-		metric.WithSeries("5 min.", 5*time.Second, 60),
-		metric.WithSeries("5 hr.", 5*time.Minute, 60),
-		metric.WithSeries("15 hr.", 15*time.Minute, 60),
+		metric.WithSamplingInterval(1*time.Second),
+		metric.WithSeries("15m", 10*time.Second, 90),
+		metric.WithSeries("3h", 60*time.Second, 180),
+		metric.WithSeries("30h", 10*time.Minute, 180),
+		metric.WithSeries("3d", 30*time.Minute, 144),
 		metric.WithPrefix("metrical"),
 		metric.WithInputBuffer(100),
 		metric.WithStorage(metric.NewFileStorage(storeDir)),
@@ -42,6 +42,8 @@ func main() {
 	collector.AddInputFunc(gostat.Runtime{}.Collect)
 	collector.AddInputFunc(ps.PS{}.Collect)
 	collector.AddInputFunc(ps.NetStat{}.Collect)
+	psNet := &ps.Net{Interfaces: []string{"eth*"}}
+	collector.AddInputFunc(psNet.Collect)
 	// collector.AddOutputFunc(
 	// 	metric.DenyNameFilter(ndjson.Output{DestUrl: ""}.Export,
 	// 		"netstat:tcp_last_ack", "netstat:tcp_none", "netstat:tcp_time_wait", "netstat:tcp_closing",
@@ -59,8 +61,27 @@ func main() {
 
 	// http server
 	if httpAddr != "" {
+		netstatFilter := metric.MustCompile([]string{"metrical:netstat:tcp_*", "metrical:netstat:udp_*"}, ':')
+		lastOnlyFilter := metric.MustCompile([]string{"*(last)"})
+		avgOnlyFilter := metric.MustCompile([]string{"*(avg)"})
+		httpStatusFilter := metric.MustCompile([]string{"metrical:http:status_[1-5]xx"}, ':')
+
+		dash := metric.NewDashboard(collector)
+		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"metrical:ps:cpu_percent"}})
+		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"metrical:ps:mem_percent"}})
+		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"metrical:runtime:goroutines"}})
+		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"metrical:runtime:heap_inuse"}, ValueSelector: avgOnlyFilter})
+		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"metrical:net:bytes_recv", "metrical:net:bytes_sent"}, Type: "line"})
+		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"metrical:net:packets_recv", "metrical:net:packets_sent"}, Type: "line"})
+		dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"metrical:net:drop_in", "metrical:net:drop_out", "metrical:net:err_in", "metrical:net:err_out"}, Type: "bar-stack"})
+		dash.AddChart(metric.Chart{Title: "Netstat", MetricNameFilter: netstatFilter, ValueSelector: lastOnlyFilter})
+		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"metrical:http:latency"}})
+		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"metrical:http:bytes_recv", "metrical:http:bytes_sent"}, Type: "line"})
+		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNameFilter: httpStatusFilter, Type: "bar-stack"})
+		dash.ShowRemains = true
+
 		mux := http.NewServeMux()
-		mux.HandleFunc("/dashboard", charts.HandleDashboard(collector.PublishNames, collector.SeriesNames()))
+		mux.Handle("/dashboard", dash)
 		svr := &http.Server{
 			Addr:      httpAddr,
 			Handler:   httpstat.NewHandler(collector.C, mux),
