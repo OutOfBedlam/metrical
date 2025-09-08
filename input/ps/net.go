@@ -9,8 +9,6 @@ import (
 
 type Net struct {
 	Interfaces []string
-
-	prev map[string]uint64
 }
 
 var _ metric.Input = (*Net)(nil)
@@ -71,21 +69,19 @@ func (n *Net) Gather(g metric.Gather) {
 		counts["drop_out"] += c.Dropout
 	}
 
+	bytesOdometerType := metric.OdometerType(metric.UnitBytes)
+	shortOdometerType := metric.OdometerType(metric.UnitShort)
+
 	m := metric.Measurement{Name: "net"}
-	if n.prev != nil {
-		bytesCounterType := metric.CounterType(metric.UnitBytes)
-		shortCounterType := metric.CounterType(metric.UnitShort)
-		m.AddField(
-			metric.Field{Name: "bytes_sent", Value: float64(counts["bytes_sent"] - n.prev["bytes_sent"]), Type: bytesCounterType},
-			metric.Field{Name: "bytes_recv", Value: float64(counts["bytes_recv"] - n.prev["bytes_recv"]), Type: bytesCounterType},
-			metric.Field{Name: "packets_sent", Value: float64(counts["packets_sent"] - n.prev["packets_sent"]), Type: shortCounterType},
-			metric.Field{Name: "packets_recv", Value: float64(counts["packets_recv"] - n.prev["packets_recv"]), Type: shortCounterType},
-			metric.Field{Name: "err_in", Value: float64(counts["err_in"] - n.prev["err_in"]), Type: shortCounterType},
-			metric.Field{Name: "err_out", Value: float64(counts["err_out"] - n.prev["err_out"]), Type: shortCounterType},
-			metric.Field{Name: "drop_in", Value: float64(counts["drop_in"] - n.prev["drop_in"]), Type: shortCounterType},
-			metric.Field{Name: "drop_out", Value: float64(counts["drop_out"] - n.prev["drop_out"]), Type: shortCounterType},
-		)
-	}
-	n.prev = counts
+	m.AddField(
+		metric.Field{Name: "bytes_sent", Value: float64(counts["bytes_sent"]), Type: bytesOdometerType},
+		metric.Field{Name: "bytes_recv", Value: float64(counts["bytes_recv"]), Type: bytesOdometerType},
+		metric.Field{Name: "packets_sent", Value: float64(counts["packets_sent"]), Type: shortOdometerType},
+		metric.Field{Name: "packets_recv", Value: float64(counts["packets_recv"]), Type: shortOdometerType},
+		metric.Field{Name: "err_in", Value: float64(counts["err_in"]), Type: shortOdometerType},
+		metric.Field{Name: "err_out", Value: float64(counts["err_out"]), Type: shortOdometerType},
+		metric.Field{Name: "drop_in", Value: float64(counts["drop_in"]), Type: shortOdometerType},
+		metric.Field{Name: "drop_out", Value: float64(counts["drop_out"]), Type: shortOdometerType},
+	)
 	g.AddMeasurement(m)
 }

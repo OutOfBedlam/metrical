@@ -42,7 +42,7 @@ func (ps *PS) Gather(g metric.Gather) {
 	m.Fields = append(m.Fields, metric.Field{
 		Name:  MEM_PERCENT,
 		Value: memStat.UsedPercent,
-		Type:  metric.MeterType(metric.UnitPercent),
+		Type:  metric.GaugeType(metric.UnitPercent),
 	})
 	g.AddMeasurement(m)
 }

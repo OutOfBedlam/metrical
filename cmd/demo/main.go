@@ -52,11 +52,6 @@ func main() {
 		&ps.NetStat{},
 		&ps.Net{Interfaces: []string{"eth*"}},
 	)
-	// collector.AddOutputFunc(
-	// 	metric.DenyNameFilter(ndjson.Output{DestUrl: ""}.Export,
-	// 		"netstat:tcp_last_ack", "netstat:tcp_none", "netstat:tcp_time_wait", "netstat:tcp_closing",
-	// 	),
-	// )
 	collector.Start()
 	defer collector.Stop()
 
@@ -75,6 +70,10 @@ func main() {
 		httpStatusFilter := metric.MustCompile([]string{"metrical:http:status_[1-5]xx"}, ':')
 
 		dash := metric.NewDashboard(collector)
+		dash.SetTheme("light")
+		dash.SetPanelHeight(300)
+		dash.SetPanelMinWidth(400)
+		dash.SetPanelMaxWidth(600)
 		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"metrical:ps:cpu_percent"}})
 		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"metrical:ps:mem_percent"}})
 		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"metrical:runtime:goroutines"}, ValueSelector: avgOnlyFilter})
