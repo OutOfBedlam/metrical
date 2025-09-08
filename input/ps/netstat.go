@@ -10,14 +10,19 @@ import (
 type NetStat struct {
 }
 
+var _ metric.Input = (*NetStat)(nil)
+
 var gaugeType = metric.GaugeType(metric.UnitShort)
 
-func (ns NetStat) Collect() (metric.Measurement, error) {
-	m := metric.Measurement{Name: "netstat"}
+func (ns *NetStat) Init() error {
+	return nil
+}
 
+func (ns *NetStat) Gather(g metric.Gather) {
 	stat, err := net.Connections("all")
 	if err != nil {
-		return m, err
+		g.AddError(err)
+		return
 	}
 
 	counts := make(map[string]int)
@@ -35,6 +40,7 @@ func (ns NetStat) Collect() (metric.Measurement, error) {
 		counts[cs.Status] = c + 1
 	}
 
+	m := metric.Measurement{Name: "netstat"}
 	m.AddField(
 		metric.Field{Name: "tcp_established", Value: float64(counts["ESTABLISHED"]), Type: gaugeType},
 		metric.Field{Name: "tcp_syn_sent", Value: float64(counts["SYN_SENT"]), Type: gaugeType},
@@ -50,5 +56,5 @@ func (ns NetStat) Collect() (metric.Measurement, error) {
 		metric.Field{Name: "tcp_none", Value: float64(counts["NONE"]), Type: gaugeType},
 		metric.Field{Name: "udp_socket", Value: float64(counts["UDP"]), Type: gaugeType},
 	)
-	return m, nil
+	g.AddMeasurement(m)
 }

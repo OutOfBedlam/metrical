@@ -13,17 +13,23 @@ type Net struct {
 	prev map[string]uint64
 }
 
-func (n *Net) Collect() (metric.Measurement, error) {
-	m := metric.Measurement{Name: "net"}
+var _ metric.Input = (*Net)(nil)
 
+func (n *Net) Init() error {
+	return nil
+}
+
+func (n *Net) Gather(g metric.Gather) {
 	counters, err := net.IOCounters(true)
 	if err != nil {
-		return m, err
+		g.AddError(err)
+		return
 	}
 
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		return m, err
+		g.AddError(err)
+		return
 	}
 
 	interfacesByName := make(map[string]net.InterfaceStat, len(interfaces))
@@ -65,6 +71,7 @@ func (n *Net) Collect() (metric.Measurement, error) {
 		counts["drop_out"] += c.Dropout
 	}
 
+	m := metric.Measurement{Name: "net"}
 	if n.prev != nil {
 		bytesCounterType := metric.CounterType(metric.UnitBytes)
 		shortCounterType := metric.CounterType(metric.UnitShort)
@@ -79,7 +86,6 @@ func (n *Net) Collect() (metric.Measurement, error) {
 			metric.Field{Name: "drop_out", Value: float64(counts["drop_out"] - n.prev["drop_out"]), Type: shortCounterType},
 		)
 	}
-
 	n.prev = counts
-	return m, nil
+	g.AddMeasurement(m)
 }
