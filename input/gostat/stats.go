@@ -6,69 +6,57 @@ import (
 	"github.com/OutOfBedlam/metric"
 )
 
-type Runtime struct {
-	HeapInuse struct {
-		Enabled    bool        `toml:"enable"`
-		Type       string      `toml:"type"` // e.g. "meter", "gauge"(default)
-		metricType metric.Type `toml:"-"`
-	} `toml:"heap_inuse"`
-	GoRoutines struct {
-		Enabled    bool        `toml:"enable"`
-		Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
-		metricType metric.Type `toml:"-"`
-	} `toml:"goroutines"`
+const RegisterName = "runtime"
+
+type HeapInuse struct {
+	Type       string      `toml:"type"` // e.g. "meter", "gauge"(default)
+	metricType metric.Type `toml:"-"`
 }
 
-var _ metric.Input = (*Runtime)(nil)
-
-func (gr *Runtime) Init() error {
-	gr.HeapInuse.Enabled = true
-	gr.HeapInuse.Type = "gauge"
-	gr.GoRoutines.Enabled = true
-	gr.GoRoutines.Type = "meter"
+func (hi *HeapInuse) Init() error {
+	switch hi.Type {
+	case "meter":
+		hi.metricType = metric.MeterType(metric.UnitBytes)
+	default:
+		hi.metricType = metric.GaugeType(metric.UnitBytes)
+	}
 	return nil
 }
 
-const RegisterName = "runtime"
-const HeapInuse = "heap_inuse"
-const GoRoutines = "goroutines"
-
-func (gr *Runtime) Gather(g metric.Gather) {
+func (hi *HeapInuse) Gather(g metric.Gather) {
+	memStats := runtime.MemStats{}
+	runtime.ReadMemStats(&memStats)
 	m := metric.Measurement{Name: RegisterName}
+	m.AddField(metric.Field{
+		Name:  "heap_inuse",
+		Value: float64(memStats.HeapInuse),
+		Type:  hi.metricType,
+	})
+	g.AddMeasurement(m)
+}
 
-	if gr.HeapInuse.Enabled {
-		if gr.HeapInuse.metricType.Empty() {
-			switch gr.HeapInuse.Type {
-			case "meter":
-				gr.HeapInuse.metricType = metric.MeterType(metric.UnitBytes)
-			default:
-				gr.HeapInuse.metricType = metric.GaugeType(metric.UnitBytes)
-			}
-		}
-		memStats := runtime.MemStats{}
-		runtime.ReadMemStats(&memStats)
-		m.AddField(metric.Field{
-			Name:  HeapInuse,
-			Value: float64(memStats.HeapInuse),
-			Type:  gr.HeapInuse.metricType,
-		})
-	}
+type GoRoutines struct {
+	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
+	metricType metric.Type `toml:"-"`
+}
 
-	if gr.GoRoutines.Enabled {
-		if gr.GoRoutines.metricType.Empty() {
-			switch gr.GoRoutines.Type {
-			case "gauge":
-				gr.GoRoutines.metricType = metric.GaugeType(metric.UnitShort)
-			default:
-				gr.GoRoutines.metricType = metric.MeterType(metric.UnitShort)
-			}
-		}
-		gorutine := runtime.NumGoroutine()
-		m.AddField(metric.Field{
-			Name:  GoRoutines,
-			Value: float64(gorutine),
-			Type:  gr.GoRoutines.metricType,
-		})
+func (gr *GoRoutines) Init() error {
+	switch gr.Type {
+	case "meter":
+		gr.metricType = metric.MeterType(metric.UnitShort)
+	default:
+		gr.metricType = metric.GaugeType(metric.UnitShort)
 	}
+	return nil
+}
+
+func (gr *GoRoutines) Gather(g metric.Gather) {
+	gorutine := runtime.NumGoroutine()
+	m := metric.Measurement{Name: RegisterName}
+	m.AddField(metric.Field{
+		Name:  "goroutines",
+		Value: float64(gorutine),
+		Type:  gr.metricType,
+	})
 	g.AddMeasurement(m)
 }

@@ -40,20 +40,32 @@ func main() {
 		metric.WithStorage(metric.NewFileStorage(storeDir)),
 	)
 
-	inRuntime := &gostat.Runtime{}
-	if err := inRuntime.Init(); err != nil {
-		panic(err)
-	} else {
-		inRuntime.GoRoutines.Type = "gauge"
-		collector.AddInput(inRuntime)
+	inputs := []metric.Input{
+		&gostat.HeapInuse{Type: "gauge"},
+		&gostat.GoRoutines{Type: "gauge"},
+		&ps.CPU{Type: "gauge"},
+		&ps.Memory{Type: "gauge"},
+		&ps.NetStat{Includes: []string{"tcp_listen", "tcp_established", "tcp_*_wait*"}},
+		&ps.Net{Interfaces: []string{"eth*", "en*", "lo"}, PerNIC: false},
 	}
-	collector.AddInput(
-		&ps.PS{},
-		&ps.NetStat{},
-		&ps.Net{Interfaces: []string{"eth*"}},
-	)
+	for _, in := range inputs {
+		if hasInit, ok := in.(interface{ Init() error }); ok {
+			if err := hasInit.Init(); err != nil {
+				panic(err)
+			}
+		}
+		collector.AddInput(in)
+	}
+
 	collector.Start()
-	defer collector.Stop()
+	defer func() {
+		collector.Stop()
+		for _, in := range inputs {
+			if hasDeInit, ok := in.(interface{ DeInit() }); ok {
+				hasDeInit.DeInit()
+			}
+		}
+	}()
 
 	if exportDir != "" {
 		exporter := export.NewExporter(1*time.Second, collector.PublishNames())
@@ -70,12 +82,14 @@ func main() {
 		httpStatusFilter := metric.MustCompile([]string{"metrical:http:status_[1-5]xx"}, ':')
 
 		dash := metric.NewDashboard(collector)
+		dash.PageTitle = "Metrical - Demo"
+		dash.ShowRemains = true
 		dash.SetTheme("light")
 		dash.SetPanelHeight(300)
 		dash.SetPanelMinWidth(400)
 		dash.SetPanelMaxWidth(600)
-		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"metrical:ps:cpu_percent"}})
-		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"metrical:ps:mem_percent"}})
+		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"metrical:cpu:percent"}})
+		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"metrical:mem:percent"}})
 		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"metrical:runtime:goroutines"}, ValueSelector: avgOnlyFilter})
 		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"metrical:runtime:heap_inuse"}, ValueSelector: avgOnlyFilter})
 		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"metrical:net:bytes_recv", "metrical:net:bytes_sent"}, Type: metric.ChartTypeLine})
@@ -85,7 +99,6 @@ func main() {
 		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"metrical:http:latency"}})
 		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"metrical:http:bytes_recv", "metrical:http:bytes_sent"}, Type: metric.ChartTypeLine})
 		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNameFilter: httpStatusFilter, Type: metric.ChartTypeBarStack})
-		dash.ShowRemains = true
 
 		mux := http.NewServeMux()
 		mux.Handle("/dashboard", dash)

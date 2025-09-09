@@ -7,7 +7,30 @@ import (
 	"github.com/shirou/gopsutil/v4/net"
 )
 
+// status -> field_name
+var statusList = map[string]string{
+	"ESTABLISHED": "tcp_established",
+	"SYN_SENT":    "tcp_syn_sent",
+	"SYN_RECV":    "tcp_syn_recv",
+	"FIN_WAIT1":   "tcp_fin_wait1",
+	"FIN_WAIT2":   "tcp_fin_wait2",
+	"TIME_WAIT":   "tcp_time_wait",
+	"CLOSE":       "tcp_close",
+	"CLOSE_WAIT":  "tcp_close_wait",
+	"LAST_ACK":    "tcp_last_ack",
+	"LISTEN":      "tcp_listen",
+	"CLOSING":     "tcp_closing",
+	"NONE":        "tcp_none",
+	"UDP":         "udp_socket",
+}
+
+// tcp_established, tcp_syn_sent, tcp_syn_recv, tcp_fin_wait1, tcp_fin_wait2,
+// tcp_time_wait, tcp_close, tcp_close_wait, tcp_last_ack, tcp_listen,
+// tcp_closing, tcp_none, udp_socket
 type NetStat struct {
+	Includes []string `toml:"includes"` // empty for all kind (default) e.g. []{"tcp_*", "udp_*"}
+	Excludes []string `toml:"excludes"` // e.g. []{"tcp_none"}
+	filter   metric.Filter
 }
 
 var _ metric.Input = (*NetStat)(nil)
@@ -15,6 +38,16 @@ var _ metric.Input = (*NetStat)(nil)
 var gaugeType = metric.GaugeType(metric.UnitShort)
 
 func (ns *NetStat) Init() error {
+	if len(ns.Includes) == 0 && len(ns.Excludes) == 0 {
+		return nil
+	}
+	if len(ns.Includes) > 0 || len(ns.Excludes) > 0 {
+		f, err := metric.CompileIncludeAndExclude(ns.Includes, ns.Excludes)
+		if err != nil {
+			return err
+		}
+		ns.filter = f
+	}
 	return nil
 }
 
@@ -27,7 +60,6 @@ func (ns *NetStat) Gather(g metric.Gather) {
 
 	counts := make(map[string]int)
 	counts["UDP"] = 0
-
 	for _, cs := range stat {
 		if cs.Type == syscall.SOCK_DGRAM {
 			counts["UDP"]++
@@ -41,20 +73,16 @@ func (ns *NetStat) Gather(g metric.Gather) {
 	}
 
 	m := metric.Measurement{Name: "netstat"}
-	m.AddField(
-		metric.Field{Name: "tcp_established", Value: float64(counts["ESTABLISHED"]), Type: gaugeType},
-		metric.Field{Name: "tcp_syn_sent", Value: float64(counts["SYN_SENT"]), Type: gaugeType},
-		metric.Field{Name: "tcp_syn_recv", Value: float64(counts["SYN_RECV"]), Type: gaugeType},
-		metric.Field{Name: "tcp_fin_wait1", Value: float64(counts["FIN_WAIT1"]), Type: gaugeType},
-		metric.Field{Name: "tcp_fin_wait2", Value: float64(counts["FIN_WAIT2"]), Type: gaugeType},
-		metric.Field{Name: "tcp_time_wait", Value: float64(counts["TIME_WAIT"]), Type: gaugeType},
-		metric.Field{Name: "tcp_close", Value: float64(counts["CLOSE"]), Type: gaugeType},
-		metric.Field{Name: "tcp_close_wait", Value: float64(counts["CLOSE_WAIT"]), Type: gaugeType},
-		metric.Field{Name: "tcp_last_ack", Value: float64(counts["LAST_ACK"]), Type: gaugeType},
-		metric.Field{Name: "tcp_listen", Value: float64(counts["LISTEN"]), Type: gaugeType},
-		metric.Field{Name: "tcp_closing", Value: float64(counts["CLOSING"]), Type: gaugeType},
-		metric.Field{Name: "tcp_none", Value: float64(counts["NONE"]), Type: gaugeType},
-		metric.Field{Name: "udp_socket", Value: float64(counts["UDP"]), Type: gaugeType},
-	)
+	for kind, name := range statusList {
+		if !ns.filter.Match(name) {
+			continue
+		}
+		value, ok := counts[kind]
+		if !ok {
+			value = 0
+		}
+		val := float64(value)
+		m.AddField(metric.Field{Name: name, Value: val, Type: gaugeType})
+	}
 	g.AddMeasurement(m)
 }

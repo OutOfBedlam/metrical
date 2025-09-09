@@ -8,41 +8,63 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
-type PS struct {
+type CPU struct {
+	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
+	metricType metric.Type `toml:"-"`
 }
 
-var _ metric.Input = (*PS)(nil)
-
-const CPU_PERCENT = "cpu_percent"
-const MEM_PERCENT = "mem_percent"
-
-func (ps *PS) Init() error {
+func (c *CPU) Init() error {
+	switch c.Type {
+	case "meter":
+		c.metricType = metric.MeterType(metric.UnitPercent)
+	default:
+		c.metricType = metric.GaugeType(metric.UnitPercent)
+	}
 	return nil
 }
 
-func (ps *PS) Gather(g metric.Gather) {
-	m := metric.Measurement{Name: "ps"}
-
+func (c *CPU) Gather(g metric.Gather) {
 	cpuPercent, err := cpu.Percent(0, false)
 	if err != nil {
 		g.AddError(fmt.Errorf("error collecting CPU percent: %w", err))
 		return
 	}
-	m.Fields = append(m.Fields, metric.Field{
-		Name:  CPU_PERCENT,
-		Value: cpuPercent[0],
-		Type:  metric.MeterType(metric.UnitPercent),
-	})
 
+	m := metric.Measurement{Name: "cpu"}
+	m.AddField(metric.Field{
+		Name:  "percent",
+		Value: cpuPercent[0],
+		Type:  c.metricType,
+	})
+	g.AddMeasurement(m)
+}
+
+type Memory struct {
+	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
+	metricType metric.Type `toml:"-"`
+}
+
+func (ms *Memory) Init() error {
+	switch ms.Type {
+	case "meter":
+		ms.metricType = metric.MeterType(metric.UnitPercent)
+	default:
+		ms.metricType = metric.GaugeType(metric.UnitPercent)
+	}
+	return nil
+}
+
+func (ms *Memory) Gather(g metric.Gather) {
 	memStat, err := mem.VirtualMemory()
 	if err != nil {
 		g.AddError(fmt.Errorf("error collecting memory percent: %w", err))
 		return
 	}
-	m.Fields = append(m.Fields, metric.Field{
-		Name:  MEM_PERCENT,
+	m := metric.Measurement{Name: "mem"}
+	m.AddField(metric.Field{
+		Name:  "percent",
 		Value: memStat.UsedPercent,
-		Type:  metric.GaugeType(metric.UnitPercent),
+		Type:  ms.metricType,
 	})
 	g.AddMeasurement(m)
 }
