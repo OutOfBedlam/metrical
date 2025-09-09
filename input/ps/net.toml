@@ -1,0 +1,20 @@
+#[[input.net]]
+  ## Network interfaces to monitor, empty for all interfaces (default)
+  # interfaces = ["eth*", "en*"]
+
+  ## kinds of network stats to monitor, empty for all kinds (default)
+  ## Available kinds:
+  ##
+  ## bytes_sent, bytes_recv,
+  ## packets_sent, packets_recv,
+  ## err_in, err_out
+  ## drop_in, drop_out
+  ##
+  ## Include only these kinds of network stats, empty for all kinds (default)
+  # includes = ["bytes_*", "packets_*"]
+
+  ## Exclude these kinds of network stats, empty for none (default)
+  # excludes = ["*_err*", "*_drop*"]
+
+  ## Whether to report per-interface stats (true), or aggregate all interfaces (false, default)
+  # per_nic = false

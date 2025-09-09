@@ -1,9 +1,23 @@
 package ps
 
 import (
+	_ "embed"
+
 	"github.com/OutOfBedlam/metric"
+	"github.com/OutOfBedlam/metrical/registry"
 	"github.com/shirou/gopsutil/v4/net"
 )
+
+func init() {
+	registry.Register("net", (*Net)(nil))
+}
+
+//go:embed "net.toml"
+var netSampleConfig string
+
+func (n *Net) SampleConfig() string {
+	return netSampleConfig
+}
 
 // bytes_sent, bytes_recv, packets_sent, packets_recv, err_in, err_out, drop_in, drop_out
 type Net struct {

@@ -1,12 +1,24 @@
 package gostat
 
 import (
+	_ "embed"
 	"runtime"
 
 	"github.com/OutOfBedlam/metric"
+	"github.com/OutOfBedlam/metrical/registry"
 )
 
-const RegisterName = "runtime"
+func init() {
+	registry.Register("go_mem_stats", (*HeapInuse)(nil))
+	registry.Register("go_runtime", (*GoRoutines)(nil))
+}
+
+//go:embed "runtime.toml"
+var runtimeSampleConfig string
+
+func (n *HeapInuse) SampleConfig() string {
+	return runtimeSampleConfig
+}
 
 type HeapInuse struct {
 	Type       string      `toml:"type"` // e.g. "meter", "gauge"(default)
@@ -26,7 +38,7 @@ func (hi *HeapInuse) Init() error {
 func (hi *HeapInuse) Gather(g metric.Gather) {
 	memStats := runtime.MemStats{}
 	runtime.ReadMemStats(&memStats)
-	m := metric.Measurement{Name: RegisterName}
+	m := metric.Measurement{Name: "go_mem_stats"}
 	m.AddField(metric.Field{
 		Name:  "heap_inuse",
 		Value: float64(memStats.HeapInuse),
@@ -52,7 +64,7 @@ func (gr *GoRoutines) Init() error {
 
 func (gr *GoRoutines) Gather(g metric.Gather) {
 	gorutine := runtime.NumGoroutine()
-	m := metric.Measurement{Name: RegisterName}
+	m := metric.Measurement{Name: "go_runtime"}
 	m.AddField(metric.Field{
 		Name:  "goroutines",
 		Value: float64(gorutine),

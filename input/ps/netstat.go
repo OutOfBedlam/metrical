@@ -1,11 +1,25 @@
 package ps
 
 import (
+	_ "embed"
 	"syscall"
 
 	"github.com/OutOfBedlam/metric"
+	"github.com/OutOfBedlam/metrical/registry"
 	"github.com/shirou/gopsutil/v4/net"
 )
+
+func init() {
+	registry.Register("netstat", (*NetStat)(nil))
+}
+
+//go:embed "netstat.toml"
+var netstatSampleConfig string
+
+func (n *NetStat) SampleConfig() string {
+	return netstatSampleConfig
+
+}
 
 // status -> field_name
 var statusList = map[string]string{

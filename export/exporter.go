@@ -27,6 +27,12 @@ type Exporter struct {
 	latestErr error
 }
 
+// Example:
+//
+// exporter := export.NewExporter(1*time.Second, mc.Collector.PublishNames())
+// exporter.AddOutput(&svg.SVGOutput{DstDir: exportDir}, nil)
+// exporter.Start()
+// defer exporter.Stop()
 func NewExporter(interval time.Duration, metrics []string) *Exporter {
 	return &Exporter{
 		interval: interval,
