@@ -12,11 +12,11 @@ import (
 
 type ServerMeter struct {
 	name    string
-	ch      chan<- metric.Measurement
+	ch      chan<- *metric.Gather
 	handler http.Handler
 }
 
-func NewHandler(ch chan<- metric.Measurement, handler http.Handler) *ServerMeter {
+func NewHandler(ch chan<- *metric.Gather, handler http.Handler) *ServerMeter {
 	return &ServerMeter{
 		name:    "http",
 		ch:      ch,
@@ -34,12 +34,12 @@ func (sm *ServerMeter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = reqCounter
 	rsp := &ResponseWriterWrapper{ResponseWriter: w, statusCode: http.StatusOK}
 	defer func() {
-		measure := metric.Measurement{Name: "http"}
-		measure.AddField(metric.Field{Name: "requests", Value: 1, Type: counterType})
-		measure.AddField(metric.Field{Name: "latency", Value: float64(time.Since(tick).Nanoseconds()), Type: histogramType})
-		measure.AddField(metric.Field{Name: "bytes_sent", Value: float64(rsp.responseBytes), Type: bytesCounterType})
-		measure.AddField(metric.Field{Name: "bytes_recv", Value: float64(reqCounter.total), Type: bytesCounterType})
-		measure.AddField(metric.Field{Name: fmt.Sprintf("status_%dxx", rsp.statusCode/100), Value: 1, Type: counterType})
+		measure := &metric.Gather{}
+		measure.Add("http:requests", 1, counterType)
+		measure.Add("http:latency", float64(time.Since(tick).Nanoseconds()), histogramType)
+		measure.Add("http:bytes_sent", float64(rsp.responseBytes), bytesCounterType)
+		measure.Add("http:bytes_recv", float64(reqCounter.total), bytesCounterType)
+		measure.Add(fmt.Sprintf("http:status_%dxx", rsp.statusCode/100), 1, counterType)
 		sm.ch <- measure
 
 		if err := recover(); err != nil {

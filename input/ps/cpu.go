@@ -35,18 +35,12 @@ func (c *CPU) Init() error {
 	return nil
 }
 
-func (c *CPU) Gather(g metric.Gather) {
+func (c *CPU) Gather(g *metric.Gather) {
 	cpuPercent, err := cpu.Percent(0, false)
 	if err != nil {
 		g.AddError(fmt.Errorf("error collecting CPU percent: %w", err))
 		return
 	}
 
-	m := metric.Measurement{Name: "cpu"}
-	m.AddField(metric.Field{
-		Name:  "percent",
-		Value: cpuPercent[0],
-		Type:  c.metricType,
-	})
-	g.AddMeasurement(m)
+	g.Add("cpu:percent", cpuPercent[0], c.metricType)
 }

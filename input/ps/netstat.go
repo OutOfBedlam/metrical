@@ -65,7 +65,7 @@ func (ns *NetStat) Init() error {
 	return nil
 }
 
-func (ns *NetStat) Gather(g metric.Gather) {
+func (ns *NetStat) Gather(g *metric.Gather) {
 	stat, err := net.Connections("all")
 	if err != nil {
 		g.AddError(err)
@@ -86,7 +86,6 @@ func (ns *NetStat) Gather(g metric.Gather) {
 		counts[cs.Status] = c + 1
 	}
 
-	m := metric.Measurement{Name: "netstat"}
 	for kind, name := range statusList {
 		if !ns.filter.Match(name) {
 			continue
@@ -96,7 +95,6 @@ func (ns *NetStat) Gather(g metric.Gather) {
 			value = 0
 		}
 		val := float64(value)
-		m.AddField(metric.Field{Name: name, Value: val, Type: gaugeType})
+		g.Add("netstat:"+name, val, gaugeType)
 	}
-	g.AddMeasurement(m)
 }

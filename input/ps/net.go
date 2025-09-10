@@ -63,7 +63,7 @@ func (n *Net) Init() error {
 	return nil
 }
 
-func (n *Net) Gather(g metric.Gather) {
+func (n *Net) Gather(g *metric.Gather) {
 	counters, err := net.IOCounters(true)
 	if err != nil {
 		g.AddError(err)
@@ -117,47 +117,35 @@ func (n *Net) Gather(g metric.Gather) {
 				"drop_in":      c.Dropin,
 				"drop_out":     c.Dropout,
 			}
-			m := metric.Measurement{Name: "net:" + c.Name}
 			for k, v := range nicCounts {
 				if n.filter != nil && !n.filter.Match(k) {
 					continue
 				}
-				var t metric.Type
+				var typ metric.Type
 				switch k {
 				case "bytes_sent", "bytes_recv":
-					t = bytesOdometerType
+					typ = bytesOdometerType
 				default:
-					t = shortOdometerType
+					typ = shortOdometerType
 				}
-				m.AddField(metric.Field{Name: k, Value: float64(v), Type: t})
-			}
-			// only add measurement if there is at least one field
-			// this allows filtering to exclude all fields and avoid empty measurements
-			// e.g. includes=["bytes_*"], excludes=["*_sent", "*_recv"]
-			// or includes=["*_err*"]
-			if len(m.Fields) > 0 {
-				g.AddMeasurement(m)
+				g.Add("net:"+c.Name+":"+k, float64(v), typ)
 			}
 		}
 	}
 
 	if !n.PerNIC {
-		m := metric.Measurement{Name: "net"}
 		for k, v := range counts {
 			if n.filter != nil && !n.filter.Match(k) {
 				continue
 			}
-			var t metric.Type
+			var typ metric.Type
 			switch k {
 			case "bytes_sent", "bytes_recv":
-				t = bytesOdometerType
+				typ = bytesOdometerType
 			default:
-				t = shortOdometerType
+				typ = shortOdometerType
 			}
-			m.AddField(metric.Field{Name: k, Value: float64(v), Type: t})
-		}
-		if len(m.Fields) > 0 {
-			g.AddMeasurement(m)
+			g.Add("net:"+k, float64(v), typ)
 		}
 	}
 }

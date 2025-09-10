@@ -25,6 +25,8 @@ type Memory struct {
 	metricType metric.Type `toml:"-"`
 }
 
+var _ metric.Input = (*Memory)(nil)
+
 func (ms *Memory) Init() error {
 	switch ms.Type {
 	case "meter":
@@ -35,17 +37,11 @@ func (ms *Memory) Init() error {
 	return nil
 }
 
-func (ms *Memory) Gather(g metric.Gather) {
+func (ms *Memory) Gather(g *metric.Gather) {
 	memStat, err := mem.VirtualMemory()
 	if err != nil {
 		g.AddError(fmt.Errorf("error collecting memory percent: %w", err))
 		return
 	}
-	m := metric.Measurement{Name: "mem"}
-	m.AddField(metric.Field{
-		Name:  "percent",
-		Value: memStat.UsedPercent,
-		Type:  ms.metricType,
-	})
-	g.AddMeasurement(m)
+	g.Add("mem:percent", memStat.UsedPercent, ms.metricType)
 }

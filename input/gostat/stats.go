@@ -35,16 +35,10 @@ func (hi *HeapInuse) Init() error {
 	return nil
 }
 
-func (hi *HeapInuse) Gather(g metric.Gather) {
+func (hi *HeapInuse) Gather(g *metric.Gather) {
 	memStats := runtime.MemStats{}
 	runtime.ReadMemStats(&memStats)
-	m := metric.Measurement{Name: "go_mem_stats"}
-	m.AddField(metric.Field{
-		Name:  "heap_inuse",
-		Value: float64(memStats.HeapInuse),
-		Type:  hi.metricType,
-	})
-	g.AddMeasurement(m)
+	g.Add("go_mem_stats:heap_inuse", float64(memStats.HeapInuse), hi.metricType)
 }
 
 type GoRoutines struct {
@@ -62,13 +56,7 @@ func (gr *GoRoutines) Init() error {
 	return nil
 }
 
-func (gr *GoRoutines) Gather(g metric.Gather) {
+func (gr *GoRoutines) Gather(g *metric.Gather) {
 	gorutine := runtime.NumGoroutine()
-	m := metric.Measurement{Name: "go_runtime"}
-	m.AddField(metric.Field{
-		Name:  "goroutines",
-		Value: float64(gorutine),
-		Type:  gr.metricType,
-	})
-	g.AddMeasurement(m)
+	g.Add("go_runtime:goroutines", float64(gorutine), gr.metricType)
 }

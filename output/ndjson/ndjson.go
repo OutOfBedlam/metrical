@@ -59,7 +59,7 @@ type Record struct {
 
 func (o Encoder) Process(pd metric.Product) {
 	r := Record{}
-	r.Name = fmt.Sprintf("%s:%s", pd.Measure, pd.Field)
+	r.Name = pd.Name
 	switch o.Timeformat {
 	case "s":
 		r.Time = pd.Time.Unix()
