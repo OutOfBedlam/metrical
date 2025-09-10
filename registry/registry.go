@@ -22,6 +22,9 @@ func Register(name string, nilPtr any) error {
 	if sample, ok := nilPtr.(interface{ SampleConfig() string }); ok {
 		sampleConfig = sample.SampleConfig()
 	}
+	if _, exists := registry[name]; exists {
+		return fmt.Errorf("already registered name: %s", name)
+	}
 	registry[name] = RegisterItem{
 		Type:         reflect.TypeOf(nilPtr).Elem(),
 		SampleConfig: sampleConfig,
