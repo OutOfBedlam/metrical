@@ -21,7 +21,8 @@ func (c *CPU) SampleConfig() string {
 }
 
 type CPU struct {
-	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
+	Type       string      `toml:"type"`
+	PerCPU     bool        `toml:"per_cpu"`
 	metricType metric.Type `toml:"-"`
 }
 
@@ -35,12 +36,18 @@ func (c *CPU) Init() error {
 	return nil
 }
 
-func (c *CPU) Gather(g *metric.Gather) {
-	cpuPercent, err := cpu.Percent(0, false)
+func (c *CPU) Gather(g *metric.Gather) error {
+	cpuPercent, err := cpu.Percent(0, c.PerCPU)
 	if err != nil {
-		g.AddError(fmt.Errorf("error collecting CPU percent: %w", err))
-		return
+		return fmt.Errorf("error collecting CPU percent: %w", err)
 	}
 
-	g.Add("cpu:percent", cpuPercent[0], c.metricType)
+	if c.PerCPU {
+		for i, p := range cpuPercent {
+			g.Add(fmt.Sprintf("cpu:cpu_%d", i), p, c.metricType)
+		}
+	} else {
+		g.Add("cpu:cpu_all", cpuPercent[0], c.metricType)
+	}
+	return nil
 }

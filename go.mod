@@ -4,7 +4,7 @@ go 1.24.5
 
 require (
 	github.com/BurntSushi/toml v1.5.0
-	github.com/OutOfBedlam/metric v0.0.0-20250910031444-b81d0d71b403
+	github.com/OutOfBedlam/metric v0.0.0-20250910055244-6f1cdcb720d5
 	github.com/shirou/gopsutil/v4 v4.25.8
 	github.com/stretchr/testify v1.11.1
 )

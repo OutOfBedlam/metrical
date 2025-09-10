@@ -2,10 +2,18 @@
   ## Destination URL to send ndjson encoded data to
   # This should be an endpoint that accepts HTTP POST requests with a body
   # containing newline-delimited JSON objects.
+  # The Content-Type header will be set to "application/x-ndjson".
+  # The URL should respond with a 2xx status code on success.
+  #
   # if empty, will print to stdout
   ## Example:
   # e.g. "http://127.0.0.1:5654/db/write/TAG"
   dest = ""
+
+  ## List of metric name patterns to include in the output
+  ## If empty, all metrics will be included
+  ## Patterns can include wildcards, e.g. "cpu:cpu_*" to include all cpu metrics
+  filter = []
 
   ## Time format to use for the "time" field in the output JSON objects
   ## See https://pkg.go.dev/time#Time.Format for details on the format
@@ -16,7 +24,7 @@
   # "ns" for nanoseconds since epoch
   # "2006-01-02 15:04:05" for a common datetime format
   # "2006-01-02T15:04:05Z07:00" for RFC3339 format
-  timeformat = "2006-01-02 15:04:05"
+  timeformat = "ns"
 
   ## For odometer type metrics, how to select the value to report
   # "diff" for difference since last value
@@ -26,6 +34,7 @@
 
   ## For histogram type metrics, which percentile value to report
   # e.g. 
+  # 0 to report the first percentile (minimum)
   # 0.95 for 95th percentile
-  # 0.5 for median (default)
-  histogram_value_selector = 0.5
+  # 0.5 for median
+  histogram_value_selector = 0

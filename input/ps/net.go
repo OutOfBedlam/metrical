@@ -63,11 +63,10 @@ func (n *Net) Init() error {
 	return nil
 }
 
-func (n *Net) Gather(g *metric.Gather) {
+func (n *Net) Gather(g *metric.Gather) error {
 	counters, err := net.IOCounters(true)
 	if err != nil {
-		g.AddError(err)
-		return
+		return err
 	}
 
 	counts := map[string]uint64{
@@ -148,4 +147,5 @@ func (n *Net) Gather(g *metric.Gather) {
 			g.Add("net:"+k, float64(v), typ)
 		}
 	}
+	return nil
 }

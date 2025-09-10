@@ -65,11 +65,10 @@ func (ns *NetStat) Init() error {
 	return nil
 }
 
-func (ns *NetStat) Gather(g *metric.Gather) {
+func (ns *NetStat) Gather(g *metric.Gather) error {
 	stat, err := net.Connections("all")
 	if err != nil {
-		g.AddError(err)
-		return
+		return err
 	}
 
 	counts := make(map[string]int)
@@ -97,4 +96,5 @@ func (ns *NetStat) Gather(g *metric.Gather) {
 		val := float64(value)
 		g.Add("netstat:"+name, val, gaugeType)
 	}
+	return nil
 }

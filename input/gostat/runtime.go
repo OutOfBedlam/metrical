@@ -9,36 +9,14 @@ import (
 )
 
 func init() {
-	registry.Register("input.go_mem_stats", (*HeapInuse)(nil))
 	registry.Register("input.go_runtime", (*GoRoutines)(nil))
 }
 
 //go:embed "runtime.toml"
 var runtimeSampleConfig string
 
-func (n *HeapInuse) SampleConfig() string {
+func (n *GoRoutines) SampleConfig() string {
 	return runtimeSampleConfig
-}
-
-type HeapInuse struct {
-	Type       string      `toml:"type"` // e.g. "meter", "gauge"(default)
-	metricType metric.Type `toml:"-"`
-}
-
-func (hi *HeapInuse) Init() error {
-	switch hi.Type {
-	case "meter":
-		hi.metricType = metric.MeterType(metric.UnitBytes)
-	default:
-		hi.metricType = metric.GaugeType(metric.UnitBytes)
-	}
-	return nil
-}
-
-func (hi *HeapInuse) Gather(g *metric.Gather) {
-	memStats := runtime.MemStats{}
-	runtime.ReadMemStats(&memStats)
-	g.Add("go_mem_stats:heap_inuse", float64(memStats.HeapInuse), hi.metricType)
 }
 
 type GoRoutines struct {
@@ -56,7 +34,8 @@ func (gr *GoRoutines) Init() error {
 	return nil
 }
 
-func (gr *GoRoutines) Gather(g *metric.Gather) {
+func (gr *GoRoutines) Gather(g *metric.Gather) error {
 	gorutine := runtime.NumGoroutine()
 	g.Add("go_runtime:goroutines", float64(gorutine), gr.metricType)
+	return nil
 }

@@ -21,8 +21,10 @@ func (ms *Memory) SampleConfig() string {
 }
 
 type Memory struct {
-	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
-	metricType metric.Type `toml:"-"`
+	Type string `toml:"type"` // e.g. "gauge", "meter"(default)
+
+	metricPercentType metric.Type `toml:"-"`
+	metricBytesType   metric.Type `toml:"-"`
 }
 
 var _ metric.Input = (*Memory)(nil)
@@ -30,18 +32,20 @@ var _ metric.Input = (*Memory)(nil)
 func (ms *Memory) Init() error {
 	switch ms.Type {
 	case "meter":
-		ms.metricType = metric.MeterType(metric.UnitPercent)
+		ms.metricPercentType = metric.MeterType(metric.UnitPercent)
+		ms.metricBytesType = metric.MeterType(metric.UnitBytes)
 	default:
-		ms.metricType = metric.GaugeType(metric.UnitPercent)
+		ms.metricPercentType = metric.GaugeType(metric.UnitPercent)
+		ms.metricBytesType = metric.GaugeType(metric.UnitBytes)
 	}
 	return nil
 }
 
-func (ms *Memory) Gather(g *metric.Gather) {
+func (ms *Memory) Gather(g *metric.Gather) error {
 	memStat, err := mem.VirtualMemory()
 	if err != nil {
-		g.AddError(fmt.Errorf("error collecting memory percent: %w", err))
-		return
+		return fmt.Errorf("error collecting memory percent: %w", err)
 	}
-	g.Add("mem:percent", memStat.UsedPercent, ms.metricType)
+	g.Add("mem:percent", memStat.UsedPercent, ms.metricPercentType)
+	return nil
 }
