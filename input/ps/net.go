@@ -22,25 +22,14 @@ func (n *Net) SampleConfig() string {
 // bytes_sent, bytes_recv, packets_sent, packets_recv, err_in, err_out, drop_in, drop_out
 type Net struct {
 	Interfaces []string `toml:"interfaces"` // empty for all interfaces (default) e.g. []{"eth*", "en*"}
-	Includes   []string `toml:"includes"`   // empty for all kind (default) e.g. []{"bytes_*", "packets_*"}
-	Excludes   []string `toml:"excludes"`   // e.g. []{"*_err*", "*_drop*"}
 	PerNIC     bool     `toml:"per_nic"`    // false for aggregate all interfaces (default), true for per-interface stats
 
-	iface  []string // filtered interface names
-	filter metric.Filter
+	iface []string // filtered interface names
 }
 
 var _ metric.Input = (*Net)(nil)
 
 func (n *Net) Init() error {
-	if len(n.Includes) > 0 || len(n.Excludes) > 0 {
-		f, err := metric.CompileIncludeAndExclude(n.Includes, n.Excludes)
-		if err != nil {
-			return err
-		}
-		n.filter = f
-	}
-
 	var interfaceFilter metric.Filter
 	if len(n.Interfaces) > 0 {
 		filter, err := metric.Compile(n.Interfaces)
@@ -117,9 +106,6 @@ func (n *Net) Gather(g *metric.Gather) error {
 				"drop_out":     c.Dropout,
 			}
 			for k, v := range nicCounts {
-				if n.filter != nil && !n.filter.Match(k) {
-					continue
-				}
 				var typ metric.Type
 				switch k {
 				case "bytes_sent", "bytes_recv":
@@ -134,9 +120,6 @@ func (n *Net) Gather(g *metric.Gather) error {
 
 	if !n.PerNIC {
 		for k, v := range counts {
-			if n.filter != nil && !n.filter.Match(k) {
-				continue
-			}
 			var typ metric.Type
 			switch k {
 			case "bytes_sent", "bytes_recv":

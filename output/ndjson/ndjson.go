@@ -25,33 +25,20 @@ func (o *Encoder) SampleConfig() string {
 var _ metric.Output = (*Encoder)(nil)
 
 type Encoder struct {
-	DestUrl                  string   `toml:"dest"`
-	Filter                   []string `toml:"filter"`
-	Timeformat               string   `toml:"timeformat"`
-	HistogramValuePercentile float64  `toml:"histogram_value_selector"`
-	OdometerValueSelector    string   `toml:"odometer_value_selector"`
-
-	filters metric.Filter
+	DestUrl                  string  `toml:"dest"`
+	Timeformat               string  `toml:"timeformat"`
+	HistogramValuePercentile float64 `toml:"histogram_value_selector"`
+	OdometerValueSelector    string  `toml:"odometer_value_selector"`
 }
 
 func (o *Encoder) Init() error {
 	if o.Timeformat == "" {
 		o.Timeformat = "ns"
 	}
-	if len(o.Filter) > 0 {
-		f, err := metric.Compile(o.Filter, ':')
-		if err != nil {
-			return fmt.Errorf("error compiling filter %v: %w", o.Filter, err)
-		}
-		o.filters = f
-	}
 	return nil
 }
 
 func (o Encoder) Process(pd metric.Product) error {
-	if o.filters != nil && !o.filters.Match(pd.Name) {
-		return nil
-	}
 	r, err := o.convert(pd)
 	if err != nil {
 		return err

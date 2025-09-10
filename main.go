@@ -39,6 +39,7 @@ type DataConfig struct {
 	InputBuffer      int                `toml:"input_buffer"`
 	Prefix           string             `toml:"prefix"`
 	Store            string             `toml:"store"`
+	Filter           FilterConfig       `toml:"filter"`
 	Timeseries       []TimeseriesConfig `toml:"timeseries"`
 }
 
@@ -46,6 +47,11 @@ type TimeseriesConfig struct {
 	Name     string        `toml:"name"`
 	Interval time.Duration `toml:"interval"`
 	MaxCount int           `toml:"length"`
+}
+
+type FilterConfig struct {
+	Includes []string `toml:"includes"`
+	Excludes []string `toml:"excludes"`
 }
 
 //go:embed "metrical-default.conf"
@@ -69,6 +75,10 @@ func main() {
 			SamplingInterval: time.Second,
 			InputBuffer:      100,
 			Store:            "./tmp/store/",
+			Filter: FilterConfig{
+				Includes: []string{},
+				Excludes: []string{},
+			},
 			Timeseries: []TimeseriesConfig{
 				{Name: "15m", Interval: 10 * time.Second, MaxCount: 90},
 				{Name: "1h30m", Interval: time.Minute, MaxCount: 90},
@@ -200,6 +210,13 @@ func (mc *Metrical) loadConfig(content string) error {
 			continue
 		}
 		options = append(options, metric.WithSeries(ts.Name, ts.Interval, ts.MaxCount))
+	}
+	if len(mc.Data.Filter.Includes) > 0 || len(mc.Data.Filter.Excludes) > 0 {
+		filter, err := metric.CompileIncludeAndExclude(mc.Data.Filter.Includes, mc.Data.Filter.Excludes, ':')
+		if err != nil {
+			return fmt.Errorf("error compiling filter %v: %w", mc.Data.Filter, err)
+		}
+		options = append(options, metric.WithTimeseriesFilter(filter))
 	}
 	mc.Collector = metric.NewCollector(options...)
 	if err := registry.LoadConfig(mc.Collector, content); err != nil {

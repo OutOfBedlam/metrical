@@ -42,28 +42,11 @@ var statusList = map[string]string{
 // tcp_time_wait, tcp_close, tcp_close_wait, tcp_last_ack, tcp_listen,
 // tcp_closing, tcp_none, udp_socket
 type NetStat struct {
-	Includes []string `toml:"includes"` // empty for all kind (default) e.g. []{"tcp_*", "udp_*"}
-	Excludes []string `toml:"excludes"` // e.g. []{"tcp_none"}
-	filter   metric.Filter
 }
 
 var _ metric.Input = (*NetStat)(nil)
 
 var gaugeType = metric.GaugeType(metric.UnitShort)
-
-func (ns *NetStat) Init() error {
-	if len(ns.Includes) == 0 && len(ns.Excludes) == 0 {
-		return nil
-	}
-	if len(ns.Includes) > 0 || len(ns.Excludes) > 0 {
-		f, err := metric.CompileIncludeAndExclude(ns.Includes, ns.Excludes)
-		if err != nil {
-			return err
-		}
-		ns.filter = f
-	}
-	return nil
-}
 
 func (ns *NetStat) Gather(g *metric.Gather) error {
 	stat, err := net.Connections("all")
@@ -86,9 +69,6 @@ func (ns *NetStat) Gather(g *metric.Gather) error {
 	}
 
 	for kind, name := range statusList {
-		if !ns.filter.Match(name) {
-			continue
-		}
 		value, ok := counts[kind]
 		if !ok {
 			value = 0

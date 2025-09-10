@@ -80,11 +80,26 @@ func LoadConfig(c *metric.Collector, content string) error {
 						return err
 					}
 				}
+				var filter metric.Filter
+				if x, ok := section["filter"].(map[string]any); ok {
+					includes, excludes := x["includes"], x["excludes"]
+					if f, err := compileFilter(includes, excludes); err != nil {
+						return err
+					} else {
+						filter = f
+					}
+				}
 				if input, ok := v.(metric.Input); ok {
+					if filter != nil {
+						input = &metric.FilterInput{Filter: filter, Input: input}
+					}
 					if err := c.AddInput(input); err != nil {
 						return err
 					}
 				} else if output, ok := v.(metric.Output); ok {
+					if filter != nil {
+						output = &metric.FilterOutput{Filter: filter, Output: output}
+					}
 					if err := c.AddOutput(output); err != nil {
 						return err
 					}
@@ -95,4 +110,31 @@ func LoadConfig(c *metric.Collector, content string) error {
 		}
 	}
 	return nil
+}
+
+func compileFilter(includesAny any, excludesAny any) (metric.Filter, error) {
+	excludes, ok := excludesAny.([]any)
+	if !ok {
+		excludes = []any{}
+	}
+	includes, ok := includesAny.([]any)
+	if !ok {
+		includes = []any{}
+	}
+	inc := []string{}
+	for _, v := range includes {
+		if s, ok := v.(string); ok {
+			inc = append(inc, s)
+		}
+	}
+	exc := []string{}
+	for _, v := range excludes {
+		if s, ok := v.(string); ok {
+			exc = append(exc, s)
+		}
+	}
+	if len(inc) == 0 && len(exc) == 0 {
+		return nil, nil
+	}
+	return metric.CompileIncludeAndExclude(inc, exc, ':')
 }

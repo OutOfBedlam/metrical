@@ -1,4 +1,4 @@
-[[output.ndjson]]
+#[[output.ndjson]]
   ## Destination URL to send ndjson encoded data to
   # This should be an endpoint that accepts HTTP POST requests with a body
   # containing newline-delimited JSON objects.
@@ -13,7 +13,9 @@
   ## List of metric name patterns to include in the output
   ## If empty, all metrics will be included
   ## Patterns can include wildcards, e.g. "cpu:cpu_*" to include all cpu metrics
-  filter = []
+  #[output.ndjson.filter]
+  #  includes = []
+  #  excludes = []
 
   ## Time format to use for the "time" field in the output JSON objects
   ## See https://pkg.go.dev/time#Time.Format for details on the format
