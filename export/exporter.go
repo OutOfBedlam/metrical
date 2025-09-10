@@ -10,7 +10,7 @@ import (
 )
 
 type Output interface {
-	Export(name string, times []time.Time, values []metric.Value, fnfo metric.FieldInfo, interval time.Duration, maxCount int) error
+	Export(name string, times []time.Time, values []metric.Value, fnfo metric.SeriesInfo, interval time.Duration, maxCount int) error
 }
 
 type OutputWrapper struct {
@@ -108,7 +108,7 @@ func (s *Exporter) Export(metricName string, tsIdx int) error {
 		}
 		interval := ts.Interval()
 		maxCount := ts.MaxCount()
-		fnfo := ts.Meta().(metric.FieldInfo)
+		fnfo := ts.Meta().(metric.SeriesInfo)
 		// Export the data using the output
 		if err := ow.output.Export(name, times, values, fnfo, interval, maxCount); err != nil {
 			return err

@@ -20,7 +20,7 @@ type MetaProvider interface {
 	MaxCount() int
 }
 
-func (s *SVGOutput) Export(metricName string, times []time.Time, values []metric.Value, fnfo metric.FieldInfo, interval time.Duration, maxCount int) error {
+func (s *SVGOutput) Export(metricName string, times []time.Time, values []metric.Value, fnfo metric.SeriesInfo, interval time.Duration, maxCount int) error {
 	dstFile := filepath.Join(s.DstDir, fmt.Sprintf("%s.svg", strings.ReplaceAll(metricName, ":", "_")))
 	out, err := os.OpenFile(dstFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -35,7 +35,7 @@ func (s *SVGOutput) Export(metricName string, times []time.Time, values []metric
 	return nil
 }
 
-func CanvasWithSnapshot(times []time.Time, values []metric.Value, field metric.FieldInfo, interval time.Duration, maxCount int) *Canvas {
+func CanvasWithSnapshot(times []time.Time, values []metric.Value, field metric.SeriesInfo, interval time.Duration, maxCount int) *Canvas {
 	numValues := make([]float64, len(values))
 	minValues := make([]float64, len(values))
 	maxValues := make([]float64, len(values))

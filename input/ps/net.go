@@ -2,6 +2,7 @@ package ps
 
 import (
 	_ "embed"
+	"slices"
 
 	"github.com/OutOfBedlam/metric"
 	"github.com/OutOfBedlam/metrical/registry"
@@ -58,7 +59,7 @@ func (n *Net) Gather(g *metric.Gather) error {
 		return err
 	}
 
-	counts := map[string]uint64{
+	allCounts := map[string]uint64{
 		"bytes_sent":   0,
 		"bytes_recv":   0,
 		"packets_sent": 0,
@@ -74,27 +75,19 @@ func (n *Net) Gather(g *metric.Gather) error {
 
 	for _, c := range counters {
 		if len(n.iface) != 0 {
-			found := false
-			for _, iface := range n.iface {
-				if iface == c.Name {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if idx := slices.Index(n.iface, c.Name); idx < 0 { // ensure n.iface is sorted
 				continue
 			}
 		}
-		if !n.PerNIC {
-			counts["bytes_sent"] += c.BytesSent
-			counts["bytes_recv"] += c.BytesRecv
-			counts["packets_sent"] += c.PacketsSent
-			counts["packets_recv"] += c.PacketsRecv
-			counts["err_in"] += c.Errin
-			counts["err_out"] += c.Errout
-			counts["drop_in"] += c.Dropin
-			counts["drop_out"] += c.Dropout
-		} else {
+		allCounts["bytes_sent"] += c.BytesSent
+		allCounts["bytes_recv"] += c.BytesRecv
+		allCounts["packets_sent"] += c.PacketsSent
+		allCounts["packets_recv"] += c.PacketsRecv
+		allCounts["err_in"] += c.Errin
+		allCounts["err_out"] += c.Errout
+		allCounts["drop_in"] += c.Dropin
+		allCounts["drop_out"] += c.Dropout
+		if n.PerNIC {
 			nicCounts := map[string]uint64{
 				"bytes_sent":   c.BytesSent,
 				"bytes_recv":   c.BytesRecv,
@@ -118,17 +111,15 @@ func (n *Net) Gather(g *metric.Gather) error {
 		}
 	}
 
-	if !n.PerNIC {
-		for k, v := range counts {
-			var typ metric.Type
-			switch k {
-			case "bytes_sent", "bytes_recv":
-				typ = bytesOdometerType
-			default:
-				typ = shortOdometerType
-			}
-			g.Add("net:"+k, float64(v), typ)
+	for k, v := range allCounts {
+		var typ metric.Type
+		switch k {
+		case "bytes_sent", "bytes_recv":
+			typ = bytesOdometerType
+		default:
+			typ = shortOdometerType
 		}
+		g.Add("net:all:"+k, float64(v), typ)
 	}
 	return nil
 }

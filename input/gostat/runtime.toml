@@ -1,1 +1,8 @@
 [[input.go_runtime]]
+  ## metrics of go runtime stats to monitor.
+  ## Metric Names
+  ##    go:runtime:<metric>
+  ##
+  ## Available metrics:
+  ##    goroutines
+  

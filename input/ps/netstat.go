@@ -21,7 +21,7 @@ func (n *NetStat) SampleConfig() string {
 
 }
 
-// status -> field_name
+// status -> metric_name
 var statusList = map[string]string{
 	"ESTABLISHED": "tcp_established",
 	"SYN_SENT":    "tcp_syn_sent",

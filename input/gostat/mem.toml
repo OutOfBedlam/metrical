@@ -1,1 +1,7 @@
 [[input.go_mem]]
+  ## metrics of go runtime memory stats to monitor.
+  ## Metric Names
+  ##    go:mem:<metric>
+  ##
+  ## Available metrics:
+  ##    heap_inuse

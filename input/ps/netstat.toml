@@ -1,11 +1,17 @@
 #[[input.netstat]]
 
-  ## metrics available:
+  ## metrics of netstat to monitor, empty for all (default)
+  ## Metric Names
+  ##     netstat:<metric>
+  ##
+  ## Available metrics:
+  ##
   ## tcp_established, tcp_syn_sent, tcp_syn_recv, tcp_fin_wait1, tcp_fin_wait2,
   ## tcp_time_wait, tcp_close, tcp_close_wait, tcp_last_ack, tcp_listen,
   ## tcp_closing, tcp_none, udp_socket
-  #[input.netstat.filter]
+  ##
+  [input.netstat.filter]
     ## Include only these kinds of network stats, empty for all kinds (default)
-    #includes = ["netstat:tcp_*", "netstat:udp_*"]
+    includes = []  # ["netstat:tcp_*", "netstat:udp_*"]
     ## Exclude these kinds of network stats, empty for none (default)
-    #excludes = ["netstat:tcp_none"]
+    excludes = []  # ["netstat:tcp_none"]

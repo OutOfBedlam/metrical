@@ -36,6 +36,6 @@ func (gr *GoRoutines) Init() error {
 
 func (gr *GoRoutines) Gather(g *metric.Gather) error {
 	gorutine := runtime.NumGoroutine()
-	g.Add("go_runtime:goroutines", float64(gorutine), gr.metricType)
+	g.Add("go:runtime:goroutines", float64(gorutine), gr.metricType)
 	return nil
 }

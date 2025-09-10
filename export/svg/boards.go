@@ -50,17 +50,17 @@ func HandleDashboard(metricNames []string) func(w http.ResponseWriter, r *http.R
 	}
 }
 
-func getSnapshot(name string, idx int) ([]time.Time, []metric.Value, metric.FieldInfo) {
+func getSnapshot(name string, idx int) ([]time.Time, []metric.Value, metric.SeriesInfo) {
 	if g := expvar.Get(name); g != nil {
 		mts := g.(metric.MultiTimeSeries)
 		if idx >= 0 && idx < len(mts) {
 			ts := mts[idx]
-			meta := ts.Meta().(metric.FieldInfo)
+			meta := ts.Meta().(metric.SeriesInfo)
 			times, values := ts.All()
 			return times, values, meta
 		}
 	}
-	return nil, nil, metric.FieldInfo{}
+	return nil, nil, metric.SeriesInfo{}
 }
 
 type Data struct {
@@ -68,7 +68,7 @@ type Data struct {
 	MetricNames []string
 	// for detail view
 	Detail bool
-	Meta   metric.FieldInfo
+	Meta   metric.SeriesInfo
 	Times  []time.Time
 	Values []metric.Value
 }
@@ -161,7 +161,7 @@ type Snapshot struct {
 	Values   []metric.Value
 	Interval time.Duration
 	MaxCount int
-	Meta     metric.FieldInfo
+	Meta     metric.SeriesInfo
 }
 
 func MiniGraph(ss Snapshot) template.HTML {
@@ -183,7 +183,7 @@ func SnapshotAll(name string) []Snapshot {
 					Values:   values,
 					Interval: ts.Interval(),
 					MaxCount: ts.MaxCount(),
-					Meta:     ts.Meta().(metric.FieldInfo),
+					Meta:     ts.Meta().(metric.SeriesInfo),
 				})
 			}
 		}

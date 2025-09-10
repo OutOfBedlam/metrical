@@ -37,6 +37,6 @@ func (hi *HeapInuse) Init() error {
 func (hi *HeapInuse) Gather(g *metric.Gather) error {
 	memStats := runtime.MemStats{}
 	runtime.ReadMemStats(&memStats)
-	g.Add("go_mem:heap_inuse", float64(memStats.HeapInuse), hi.metricType)
+	g.Add("go:mem:heap_inuse", float64(memStats.HeapInuse), hi.metricType)
 	return nil
 }

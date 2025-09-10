@@ -17,7 +17,7 @@
   #  includes = []
   #  excludes = []
 
-  ## Time format to use for the "time" field in the output JSON objects
+  ## Time format to use for the "time" value in the output JSON objects
   ## See https://pkg.go.dev/time#Time.Format for details on the format
   # e.g.
   # "s" for seconds since epoch

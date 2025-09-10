@@ -5,17 +5,20 @@
   ## Whether to report per-interface stats (true), or aggregate all interfaces (false, default)
   per_nic = false
 
-  ## metrics of network stats to monitor, empty for all (default)
+  ## metrics of network traffics to monitor, empty for all (default)
+  ## Metric Names
+  ##     net:<interface>:<metric>
+  ##   The total across all interfaces is reported with interface name "all"
+  ##     net:all:<metric>
+  ##
   ## Available metrics:
   ##
-  ## bytes_sent, bytes_recv,
-  ## packets_sent, packets_recv,
-  ## err_in, err_out
-  ## drop_in, drop_out
-  ##
-  #[input.net.filter]
+  ## bytes_sent, bytes_recv, packets_sent, packets_recv,
+  ## err_in, err_out, drop_in, drop_out
+  ## 
+  [input.net.filter]
     ## Include only these kinds of network stats, empty for all kinds (default)
-    #includes = ["net:bytes_*", "net:packets_*"]
+    includes = []  # ["net:*:bytes_*", "net:*:packets_*"]
 
     ## Exclude these kinds of network stats, empty for none (default)
-    #excludes = ["net:*err_*", "net:*drop_*"]
+    excludes = []  # ["net:*:*err_*", "net:*:*drop_*"]

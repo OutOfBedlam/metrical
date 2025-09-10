@@ -107,10 +107,8 @@ func main() {
 
 	// http server
 	if mc.Http.Listen != "" {
-		netstatFilter := metric.MustCompile([]string{"netstat:tcp_*", "netstat:udp_*"}, ':')
-		lastOnlyFilter := metric.MustCompile([]string{"*(last)"})
-		avgOnlyFilter := metric.MustCompile([]string{"*(avg)"})
-		httpStatusFilter := metric.MustCompile([]string{"http:status_[1-5]xx"}, ':')
+		lastOnlyFilter := metric.MustCompile([]string{"*#last"})
+		avgOnlyFilter := metric.MustCompile([]string{"*#avg"})
 
 		dash := metric.NewDashboard(mc.Collector)
 		dash.PageTitle = "Metrical - Demo"
@@ -119,17 +117,17 @@ func main() {
 		dash.SetPanelHeight(300)
 		dash.SetPanelMinWidth(400)
 		dash.SetPanelMaxWidth(600)
-		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNameFilter: metric.MustCompile([]string{"cpu:cpu_*"}, ':')})
+		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}})
 		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}})
-		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go_runtime:goroutines"}, ValueSelector: avgOnlyFilter})
-		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go_mem:heap_inuse"}, ValueSelector: avgOnlyFilter})
-		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:bytes_recv", "net:bytes_sent"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:packets_recv", "net:packets_sent"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:drop_in", "net:drop_out", "net:err_in", "net:err_out"}, Type: metric.ChartTypeBarStack})
-		dash.AddChart(metric.Chart{Title: "Netstat", MetricNameFilter: netstatFilter, ValueSelector: lastOnlyFilter})
+		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, SeriesSelector: avgOnlyFilter})
+		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go:mem:heap_inuse"}, SeriesSelector: avgOnlyFilter})
+		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:*:drop_in", "net:*:drop_out", "net:*:err_in", "net:*:err_out"}, Type: metric.ChartTypeBarStack})
+		dash.AddChart(metric.Chart{Title: "Netstat", MetricNames: []string{"netstat:tcp_*", "netstat:udp_*"}, SeriesSelector: lastOnlyFilter})
 		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"http:latency"}})
 		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNameFilter: httpStatusFilter, Type: metric.ChartTypeBarStack})
+		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
 
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
