@@ -1,22 +1,46 @@
 package ndjson
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/OutOfBedlam/metric"
+	"github.com/OutOfBedlam/metrical/registry"
 )
 
-type Output struct {
-	DestUrl                  string // e.g. "http://127.0.0.1:5654/db/write/TAG"
-	HistogramValuePercentile float64
+func init() {
+	registry.Register("output.ndjson", (*Encoder)(nil))
+}
+
+//go:embed "ndjson.toml"
+var ndjsonSampleConfig string
+
+func (o *Encoder) SampleConfig() string {
+	return ndjsonSampleConfig
+}
+
+var _ metric.Output = (*Encoder)(nil)
+
+type Encoder struct {
+	DestUrl                  string  `toml:"dest"`
+	Timeformat               string  `toml:"timeformat"`
+	HistogramValuePercentile float64 `toml:"histogram_value_selector"`
+	OdometerValueSelector    string  `toml:"odometer_value_selector"`
+}
+
+func (o *Encoder) Init() error {
+	if o.Timeformat == "" {
+		o.Timeformat = "ns"
+	}
+	return nil
 }
 
 type Record struct {
 	Name   string `json:"NAME"`
-	Time   int64  `json:"TIME"`
+	Time   any    `json:"TIME"`
 	Type   string `json:"TYPE"`
 	Period string `json:"PERIOD"`
 	// Counter
@@ -33,10 +57,21 @@ type Record struct {
 	P map[string]float64 `json:"P,omitempty"`
 }
 
-func (o Output) Export(pd metric.Product) {
+func (o Encoder) Process(pd metric.Product) {
 	r := Record{}
 	r.Name = fmt.Sprintf("%s:%s", pd.Measure, pd.Field)
-	r.Time = pd.Time.UnixNano()
+	switch o.Timeformat {
+	case "s":
+		r.Time = pd.Time.Unix()
+	case "ms":
+		r.Time = pd.Time.UnixNano() / 1e6
+	case "us", "µs":
+		r.Time = pd.Time.UnixNano() / 1e3
+	case "ns":
+		r.Time = pd.Time.UnixNano()
+	default:
+		r.Time = pd.Time.Format(o.Timeformat)
+	}
 	r.Type = pd.Type
 	r.Period = pd.Period.String()
 
@@ -81,6 +116,18 @@ func (o Output) Export(pd metric.Product) {
 		}
 		r.Value = value
 		r.Samples = p.Samples
+	case *metric.OdometerValue:
+		switch o.OdometerValueSelector {
+		case "no_negative_diff":
+			r.Value = p.NonNegativeDiff()
+		case "abs_diff":
+			r.Value = p.AbsDiff()
+		default: // "diff"
+			r.Value = p.Diff()
+		}
+		r.Samples = p.Samples
+		r.Last = p.Last
+		r.First = p.First
 	default:
 		fmt.Printf("Unknown product type: %T\n", p)
 		return

@@ -9,8 +9,8 @@ import (
 )
 
 func init() {
-	registry.Register("go_mem_stats", (*HeapInuse)(nil))
-	registry.Register("go_runtime", (*GoRoutines)(nil))
+	registry.Register("input.go_mem_stats", (*HeapInuse)(nil))
+	registry.Register("input.go_runtime", (*GoRoutines)(nil))
 }
 
 //go:embed "runtime.toml"

@@ -16,6 +16,7 @@ import (
 	_ "github.com/OutOfBedlam/metrical/input/gostat"
 	"github.com/OutOfBedlam/metrical/input/httpstat"
 	_ "github.com/OutOfBedlam/metrical/input/ps"
+	_ "github.com/OutOfBedlam/metrical/output/ndjson"
 	"github.com/OutOfBedlam/metrical/registry"
 )
 
@@ -61,7 +62,7 @@ func main() {
 	mc := Metrical{
 		Http: HttpConfig{
 			Listen:        ":3000",
-			AdvAddr:       "http://127.0.0.1:3000",
+			AdvAddr:       "http://localhost:3000",
 			DashboardPath: "/dashboard",
 		},
 		Data: DataConfig{
@@ -201,6 +202,8 @@ func (mc *Metrical) loadConfig(content string) error {
 		options = append(options, metric.WithSeries(ts.Name, ts.Interval, ts.MaxCount))
 	}
 	mc.Collector = metric.NewCollector(options...)
-	registry.LoadConfig(mc.Collector, content)
+	if err := registry.LoadConfig(mc.Collector, content); err != nil {
+		return err
+	}
 	return nil
 }

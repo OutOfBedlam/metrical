@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("netstat", (*NetStat)(nil))
+	registry.Register("input.netstat", (*NetStat)(nil))
 }
 
 //go:embed "netstat.toml"

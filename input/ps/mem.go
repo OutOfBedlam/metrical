@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("mem", (*Memory)(nil))
+	registry.Register("input.mem", (*Memory)(nil))
 }
 
 //go:embed "mem.toml"

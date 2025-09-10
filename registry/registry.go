@@ -10,7 +10,7 @@ import (
 	"github.com/OutOfBedlam/metric"
 )
 
-var inputRegistry = make(map[string]RegisterItem)
+var registry = make(map[string]RegisterItem)
 
 type RegisterItem struct {
 	Type         reflect.Type
@@ -22,24 +22,21 @@ func Register(name string, nilPtr any) error {
 	if sample, ok := nilPtr.(interface{ SampleConfig() string }); ok {
 		sampleConfig = sample.SampleConfig()
 	}
-	if _, ok := nilPtr.(metric.Input); ok {
-		inputRegistry[name] = RegisterItem{
-			Type:         reflect.TypeOf(nilPtr).Elem(),
-			SampleConfig: sampleConfig,
-		}
-		return nil
+	registry[name] = RegisterItem{
+		Type:         reflect.TypeOf(nilPtr).Elem(),
+		SampleConfig: sampleConfig,
 	}
-	return fmt.Errorf("type %T does not unknown type", nilPtr)
+	return nil
 }
 
 func GenerateSampleConfig(w io.Writer) {
-	inputNames := []string{}
-	for k := range inputRegistry {
-		inputNames = append(inputNames, k)
+	names := []string{}
+	for k := range registry {
+		names = append(names, k)
 	}
-	slices.Sort(inputNames)
-	for _, k := range inputNames {
-		sample := inputRegistry[k].SampleConfig
+	slices.Sort(names)
+	for _, k := range names {
+		sample := registry[k].SampleConfig
 		fmt.Fprintln(w, sample)
 		fmt.Fprintln(w)
 	}
@@ -47,7 +44,10 @@ func GenerateSampleConfig(w io.Writer) {
 
 func LoadConfig(c *metric.Collector, content string) error {
 	cfg := make(map[string]any)
-	inputNames := []string{}
+	processedNames := map[string][]string{
+		"input":  {},
+		"output": {},
+	}
 	meta, err := toml.Decode(content, &cfg)
 	if err != nil {
 		return err
@@ -58,16 +58,16 @@ func LoadConfig(c *metric.Collector, content string) error {
 		}
 		kind, name := keys[0], keys[1]
 		switch kind {
-		case "input":
-			reg, ok := inputRegistry[name]
+		case "input", "output":
+			reg, ok := registry[kind+"."+name]
 			if !ok {
-				return fmt.Errorf("unknown input type: %s", name)
+				return fmt.Errorf("unknown %s type: %s", kind, name)
 			}
-			if slices.Contains(inputNames, name) {
+			if slices.Contains(processedNames[kind], name) {
 				continue
 			}
-			inputNames = append(inputNames, name)
-			sections := ((cfg["input"].(map[string]any))[name]).([]map[string]any)
+			processedNames[kind] = append(processedNames[kind], name)
+			sections := ((cfg[kind].(map[string]any))[name]).([]map[string]any)
 			for _, section := range sections {
 				v := reflect.New(reg.Type).Interface()
 				if b, err := toml.Marshal(section); err != nil {
@@ -77,19 +77,16 @@ func LoadConfig(c *metric.Collector, content string) error {
 						return err
 					}
 				}
-				input, ok := v.(metric.Input)
-				if !ok {
-					return fmt.Errorf("type %s does not implement metric.Input", name)
-				}
-				if in, ok := input.(interface{ Init() error }); ok {
-					if err := in.Init(); err != nil {
-						return fmt.Errorf("error initializing input %s: %w", name, err)
+				if input, ok := v.(metric.Input); ok {
+					if err := c.AddInput(input); err != nil {
+						return err
+					}
+				} else if output, ok := v.(metric.Output); ok {
+					if err := c.AddOutput(output); err != nil {
+						return err
 					}
 				} else {
-					return fmt.Errorf("type %s does not implement metric.Input", name)
-				}
-				if err := c.AddInput(input); err != nil {
-					return err
+					return fmt.Errorf("type %s is not implement %s", name, kind)
 				}
 			}
 		}

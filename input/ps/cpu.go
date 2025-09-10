@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("cpu", (*CPU)(nil))
+	registry.Register("input.cpu", (*CPU)(nil))
 }
 
 //go:embed "cpu.toml"
