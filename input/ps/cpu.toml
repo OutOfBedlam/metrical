@@ -1,6 +1,3 @@
 [[input.cpu]]
-  ## metric type: gauge, meter
-  type = "gauge"
-
   ## collect per CPU stats, default false
   per_cpu = false

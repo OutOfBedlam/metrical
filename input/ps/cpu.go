@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("input.cpu", (*CPU)(nil))
+	registry.Register("cpu", (*CPU)(nil))
 }
 
 //go:embed "cpu.toml"
@@ -21,18 +21,12 @@ func (c *CPU) SampleConfig() string {
 }
 
 type CPU struct {
-	Type       string      `toml:"type"`
 	PerCPU     bool        `toml:"per_cpu"`
 	metricType metric.Type `toml:"-"`
 }
 
 func (c *CPU) Init() error {
-	switch c.Type {
-	case "meter":
-		c.metricType = metric.MeterType(metric.UnitPercent)
-	default:
-		c.metricType = metric.GaugeType(metric.UnitPercent)
-	}
+	c.metricType = metric.MeterType(metric.UnitPercent)
 	return nil
 }
 

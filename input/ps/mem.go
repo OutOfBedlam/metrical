@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("input.mem", (*Memory)(nil))
+	registry.Register("mem", (*Memory)(nil))
 }
 
 //go:embed "mem.toml"
@@ -21,23 +21,13 @@ func (ms *Memory) SampleConfig() string {
 }
 
 type Memory struct {
-	Type string `toml:"type"` // e.g. "gauge", "meter"(default)
-
 	metricPercentType metric.Type `toml:"-"`
-	metricBytesType   metric.Type `toml:"-"`
 }
 
 var _ metric.Input = (*Memory)(nil)
 
 func (ms *Memory) Init() error {
-	switch ms.Type {
-	case "meter":
-		ms.metricPercentType = metric.MeterType(metric.UnitPercent)
-		ms.metricBytesType = metric.MeterType(metric.UnitBytes)
-	default:
-		ms.metricPercentType = metric.GaugeType(metric.UnitPercent)
-		ms.metricBytesType = metric.GaugeType(metric.UnitBytes)
-	}
+	ms.metricPercentType = metric.MeterType(metric.UnitPercent)
 	return nil
 }
 

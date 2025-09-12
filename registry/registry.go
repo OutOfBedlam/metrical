@@ -5,6 +5,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 	"github.com/OutOfBedlam/metric"
@@ -21,6 +22,17 @@ func Register(name string, nilPtr any) error {
 	sampleConfig := ""
 	if sample, ok := nilPtr.(interface{ SampleConfig() string }); ok {
 		sampleConfig = sample.SampleConfig()
+	}
+	if _, ok := nilPtr.(metric.Input); ok {
+		if !strings.HasPrefix(name, "input.") {
+			name = "input." + name
+		}
+	} else if _, ok := nilPtr.(metric.Output); ok {
+		if !strings.HasPrefix(name, "output.") {
+			name = "output." + name
+		}
+	} else {
+		return fmt.Errorf("only Input or Output can be registered, got: %T", nilPtr)
 	}
 	if _, exists := registry[name]; exists {
 		return fmt.Errorf("already registered name: %s", name)

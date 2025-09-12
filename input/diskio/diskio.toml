@@ -1,0 +1,24 @@
+[[input.diskio]]
+  ## Block devices to monitor, empty for all devices (default)
+  ## e.g., devices = ["sd*", "vd*", "xvd*"]
+  devices = ["*"]
+
+  ## metrics of disk I/O stats to monitor, empty for all (default)
+  ## Metric Names
+  ##     diskio:<device>:<metric>
+  ##
+  ## Available metrics:
+  ##
+  ## read_bytes, write_bytes,
+  ## read_time, write_time,
+  ## read_merged, write_merged,
+  ## read_ios, write_ios,
+  ## io_in_progress,
+  ## io_time, weighted_io_time
+  ##
+  # [input.diskio.filter]
+    ## Include only these kinds of disk I/O stats, empty for all kinds (default)
+    #includes = ["diskio:sda:read_*", "diskio:sda:write_*"]
+
+    ## Exclude these kinds of disk I/O stats, empty for none (default)
+    #excludes = ["diskio:*:*time"]

@@ -20,17 +20,11 @@ func (n *HeapInuse) SampleConfig() string {
 }
 
 type HeapInuse struct {
-	Type       string      `toml:"type"` // e.g. "meter", "gauge"(default)
 	metricType metric.Type `toml:"-"`
 }
 
 func (hi *HeapInuse) Init() error {
-	switch hi.Type {
-	case "meter":
-		hi.metricType = metric.MeterType(metric.UnitBytes)
-	default:
-		hi.metricType = metric.GaugeType(metric.UnitBytes)
-	}
+	hi.metricType = metric.MeterType(metric.UnitBytes)
 	return nil
 }
 

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	registry.Register("input.net", (*Net)(nil))
+	registry.Register("net", (*Net)(nil))
 }
 
 //go:embed "net.toml"

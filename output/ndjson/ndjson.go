@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	registry.Register("output.ndjson", (*Encoder)(nil))
+	registry.Register("ndjson", (*Encoder)(nil))
 }
 
 //go:embed "ndjson.toml"

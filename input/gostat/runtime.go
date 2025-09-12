@@ -20,17 +20,11 @@ func (n *GoRoutines) SampleConfig() string {
 }
 
 type GoRoutines struct {
-	Type       string      `toml:"type"` // e.g. "gauge", "meter"(default)
 	metricType metric.Type `toml:"-"`
 }
 
 func (gr *GoRoutines) Init() error {
-	switch gr.Type {
-	case "meter":
-		gr.metricType = metric.MeterType(metric.UnitShort)
-	default:
-		gr.metricType = metric.GaugeType(metric.UnitShort)
-	}
+	gr.metricType = metric.MeterType(metric.UnitShort)
 	return nil
 }
 

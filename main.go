@@ -4,18 +4,21 @@ import (
 	_ "embed"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/OutOfBedlam/metric"
+	_ "github.com/OutOfBedlam/metrical/input/diskio"
 	_ "github.com/OutOfBedlam/metrical/input/gostat"
-	"github.com/OutOfBedlam/metrical/input/httpstat"
 	_ "github.com/OutOfBedlam/metrical/input/ps"
+	"github.com/OutOfBedlam/metrical/middleware/httpstat"
 	_ "github.com/OutOfBedlam/metrical/output/ndjson"
 	"github.com/OutOfBedlam/metrical/registry"
 )
@@ -60,10 +63,26 @@ var configContent string
 func main() {
 	var configFilename string
 	var genConfigFilename string
+	var logLevelStr string = "INFO"
 
 	flag.StringVar(&configFilename, "config", "", "metrical config file path")
 	flag.StringVar(&genConfigFilename, "gen-config", "", "Generates default config to the given filename")
+	flag.StringVar(&logLevelStr, "log-level", logLevelStr, "log level [DEBUG, INFO, WARN, ERROR]")
 	flag.Parse()
+
+	var logLevel = new(slog.LevelVar)
+	logHandler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})
+	slog.SetDefault(slog.New(logHandler))
+	switch strings.ToUpper(logLevelStr) {
+	case "DEBUG":
+		logLevel.Set(slog.LevelDebug)
+	case "WARN":
+		logLevel.Set(slog.LevelWarn)
+	case "ERROR":
+		logLevel.Set(slog.LevelError)
+	default:
+		logLevel.Set(slog.LevelInfo)
+	}
 
 	mc := Metrical{
 		Http: HttpConfig{
@@ -107,9 +126,6 @@ func main() {
 
 	// http server
 	if mc.Http.Listen != "" {
-		lastOnlyFilter := metric.MustCompile([]string{"*#last"})
-		avgOnlyFilter := metric.MustCompile([]string{"*#avg"})
-
 		dash := metric.NewDashboard(mc.Collector)
 		dash.PageTitle = "Metrical - Demo"
 		dash.ShowRemains = true
@@ -117,18 +133,20 @@ func main() {
 		dash.SetPanelHeight(300)
 		dash.SetPanelMinWidth(400)
 		dash.SetPanelMaxWidth(600)
-		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}})
-		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}})
-		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, SeriesSelector: avgOnlyFilter})
-		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go:mem:heap_inuse"}, SeriesSelector: avgOnlyFilter})
-		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:*:drop_in", "net:*:drop_out", "net:*:err_in", "net:*:err_out"}, Type: metric.ChartTypeBarStack})
-		dash.AddChart(metric.Chart{Title: "Netstat", MetricNames: []string{"netstat:tcp_*", "netstat:udp_*"}, SeriesSelector: lastOnlyFilter})
-		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"http:latency"}})
-		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}, FieldNames: []string{"ohlc", "avg"}})
+		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}, FieldNames: []string{"max"}})
+		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, FieldNames: []string{"max", "min"}})
+		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go:mem:heap_inuse"}, FieldNames: []string{"max", "min"}})
+		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, FieldNames: []string{"abs-diff"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:*:drop_in", "net:*:drop_out", "net:*:err_in", "net:*:err_out"}, Type: metric.ChartTypeScatter, ShowSymbol: true})
+		dash.AddChart(metric.Chart{Title: "Netstat", MetricNames: []string{"netstat:tcp_*", "netstat:udp_*"}, FieldNames: []string{"last"}})
+		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"http:latency"}, FieldNames: []string{"p50", "p99"}})
+		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine, ShowSymbol: true})
 		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
-
+		dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
 		svr := &http.Server{
