@@ -151,6 +151,9 @@ func main() {
 		dash.SetPanelHeight(300)
 		dash.SetPanelMinWidth(400)
 		dash.SetPanelMaxWidth(600)
+		if mc.HasInput("load") {
+			dash.AddChart(metric.Chart{Title: "Load Average", MetricNames: []string{"load:load1", "load:load5", "load:load15"}, FieldNames: []string{"avg"}, Type: metric.ChartTypeLine})
+		}
 		if mc.HasInput("cpu") {
 			dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}, FieldNames: []string{"ohlc", "avg"}})
 		}

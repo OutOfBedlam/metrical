@@ -1,0 +1,8 @@
+[[input.load]]
+  ## metrics of load averages to monitor, empty for all (default)
+  ## Metric Names
+  ##     load:load1, load:load5, load:load15
+  ##
+  [input.load.filter]
+    includes = ["load:load1", "load:load5", "load:load15"]
+  # excludes = []

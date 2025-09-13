@@ -1,4 +1,4 @@
-[[inputs.disk]]
+[[input.disk]]
   ## By default stats will be gathered for all mount points.
   ## Set mount_points will restrict the stats to only the specified mount points.
   # mount_points = ["/"]
@@ -19,6 +19,6 @@
   ##    total, free, used, used_percent,
   ##    inodes_total, inodes_free, inodes_used, inodes_used_percent
   ##
-    [inputs.disk.filter]
+    [input.disk.filter]
       includes = ["disk:*:used_percent"]
       excludes = []
