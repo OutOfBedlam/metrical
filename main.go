@@ -16,6 +16,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/OutOfBedlam/metric"
+	_ "github.com/OutOfBedlam/metrical/input/disk"
 	_ "github.com/OutOfBedlam/metrical/input/diskio"
 	_ "github.com/OutOfBedlam/metrical/input/gostat"
 	_ "github.com/OutOfBedlam/metrical/input/ps"
@@ -94,26 +95,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// 	Http: HttpConfig{
-	// 		Listen:        ":3000",
-	// 		AdvAddr:       "http://localhost:3000",
-	// 		DashboardPath: "/dashboard",
-	// 	},
-	// 	Data: DataConfig{
-	// 		SamplingInterval: time.Second,
-	// 		InputBuffer:      1000,
-	// 		Store:            "",
-	// 		Filter: FilterConfig{
-	// 			Includes: []string{},
-	// 			Excludes: []string{},
-	// 		},
-	// 		Timeseries: []TimeseriesConfig{
-	// 			{Name: "15m", Interval: 10 * time.Second, MaxCount: 90},
-	// 			{Name: "1h30m", Interval: time.Minute, MaxCount: 90},
-	// 			{Name: "2d", Interval: 30 * time.Minute, MaxCount: 96},
-	// 		},
-	// 	},
-	// }
 
 	if genConfigFilename != "" {
 		mc.genConfig(genConfigFilename)
@@ -191,6 +172,9 @@ func main() {
 			dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
 			dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
 			dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		}
+		if mc.HasInput("disk") {
+			dash.AddChart(metric.Chart{Title: "Disk Usage", MetricNames: []string{"disk:*:used_percent"}, FieldNames: []string{"last"}, Type: metric.ChartTypeLine})
 		}
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
