@@ -146,11 +146,11 @@ func main() {
 	if mc.Http.Listen != "" {
 		dash := metric.NewDashboard(mc.Collector)
 		dash.PageTitle = "Metrical - Demo"
-		dash.ShowRemains = true
+		dash.ShowRemains = false
 		dash.SetTheme("light")
-		dash.SetPanelHeight(300)
-		dash.SetPanelMinWidth(400)
-		dash.SetPanelMaxWidth(600)
+		dash.SetPanelHeight("300px")   // default
+		dash.SetPanelMinWidth("400px") // default
+		dash.SetPanelMaxWidth("1fr")   // default
 		if mc.HasInput("load") {
 			dash.AddChart(metric.Chart{Title: "Load Average", MetricNames: []string{"load:load1", "load:load5", "load:load15"}, FieldNames: []string{"avg"}, Type: metric.ChartTypeLine})
 		}
@@ -159,6 +159,9 @@ func main() {
 		}
 		if mc.HasInput("mem") {
 			dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}, FieldNames: []string{"max"}})
+		}
+		if mc.HasInput("disk") {
+			dash.AddChart(metric.Chart{Title: "Disk Usage", MetricNames: []string{"disk:*:used_percent"}, FieldNames: []string{"last"}, Type: metric.ChartTypeLine})
 		}
 		if mc.HasInput("go_runtime") {
 			dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, FieldNames: []string{"max", "min"}})
@@ -175,9 +178,6 @@ func main() {
 			dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
 			dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
 			dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-		}
-		if mc.HasInput("disk") {
-			dash.AddChart(metric.Chart{Title: "Disk Usage", MetricNames: []string{"disk:*:used_percent"}, FieldNames: []string{"last"}, Type: metric.ChartTypeLine})
 		}
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)

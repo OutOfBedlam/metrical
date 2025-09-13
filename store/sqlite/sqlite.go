@@ -343,6 +343,6 @@ func (s *Storage) shrink(tableInfo TableInfo) {
 		return
 	}
 	if rows > 0 {
-		slog.Info("Shrunk table", "table", tableInfo.name, "rows_deleted", rows, "cutoff", cutoff)
+		slog.Debug("Shrunk table", "table", tableInfo.name, "rows_deleted", rows, "cutoff", cutoff)
 	}
 }

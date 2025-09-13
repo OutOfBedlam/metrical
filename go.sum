@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.5.0 h1:W5quZX/G/csjUnuI8SUYlsHs9M38FC7znL0lIO+DvMg=
 github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/OutOfBedlam/metric v0.0.0-20250913054305-144042c8a3a8 h1:e6COQ5/+BSY5AmkSF+LLZhpjweG1Jzih7uxWPvY7GlY=
-github.com/OutOfBedlam/metric v0.0.0-20250913054305-144042c8a3a8/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
+github.com/OutOfBedlam/metric v0.0.0-20250913085630-4fb255c98beb h1:zbdRLvoIj2Ztt4Gs0Vz2BmQN+Mhvkes7pjcusp1gEhk=
+github.com/OutOfBedlam/metric v0.0.0-20250913085630-4fb255c98beb/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.8.4 h1:CF7LEKg5FFOsASUj0+QwaXf8Ht6TlFxg09+S9wz0omw=
