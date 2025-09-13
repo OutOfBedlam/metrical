@@ -57,7 +57,7 @@ func TestConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := metric.NewCollector()
-			if err := LoadConfig(c, tt.content); (err != nil) != tt.wantErr {
+			if _, _, err := LoadConfig(c, tt.content); (err != nil) != tt.wantErr {
 				t.Errorf("LoadConfig() error = %v, wantErr %v", err, tt.wantErr)
 			} else {
 				var inputNames = c.MetricNames()

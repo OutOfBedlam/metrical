@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	registry.Register("input.go_mem", (*HeapInuse)(nil))
+	registry.Register("go_mem", (*HeapInuse)(nil))
 }
 
 //go:embed "mem.toml"

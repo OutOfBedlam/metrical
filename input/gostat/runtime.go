@@ -9,7 +9,7 @@ import (
 )
 
 func init() {
-	registry.Register("input.go_runtime", (*GoRoutines)(nil))
+	registry.Register("go_runtime", (*GoRoutines)(nil))
 }
 
 //go:embed "runtime.toml"

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -21,14 +22,18 @@ import (
 	"github.com/OutOfBedlam/metrical/middleware/httpstat"
 	_ "github.com/OutOfBedlam/metrical/output/ndjson"
 	"github.com/OutOfBedlam/metrical/registry"
+	"github.com/OutOfBedlam/metrical/store/sqlite"
 )
 
-//go:generate go run main.go -gen-config ./metrical-default.conf
+//go:generate go run main.go -gen-config ./metrical-example.conf
 
 type Metrical struct {
 	Data      DataConfig        `toml:"data"`
 	Http      HttpConfig        `toml:"http"`
 	Collector *metric.Collector `toml:"-"`
+	Storage   metric.Storage    `toml:"-"`
+
+	instantiatedInputs []string
 }
 
 type HttpConfig struct {
@@ -57,7 +62,7 @@ type FilterConfig struct {
 	Excludes []string `toml:"excludes"`
 }
 
-//go:embed "metrical-default.conf"
+//go:embed "metrical.toml"
 var configContent string
 
 func main() {
@@ -84,27 +89,31 @@ func main() {
 		logLevel.Set(slog.LevelInfo)
 	}
 
-	mc := Metrical{
-		Http: HttpConfig{
-			Listen:        ":3000",
-			AdvAddr:       "http://localhost:3000",
-			DashboardPath: "/dashboard",
-		},
-		Data: DataConfig{
-			SamplingInterval: time.Second,
-			InputBuffer:      100,
-			Store:            "./tmp/store/",
-			Filter: FilterConfig{
-				Includes: []string{},
-				Excludes: []string{},
-			},
-			Timeseries: []TimeseriesConfig{
-				{Name: "15m", Interval: 10 * time.Second, MaxCount: 90},
-				{Name: "1h30m", Interval: time.Minute, MaxCount: 90},
-				{Name: "2d", Interval: 30 * time.Minute, MaxCount: 96},
-			},
-		},
+	mc := Metrical{}
+	_, err := toml.Decode(configContent, &mc)
+	if err != nil {
+		panic(err)
 	}
+	// 	Http: HttpConfig{
+	// 		Listen:        ":3000",
+	// 		AdvAddr:       "http://localhost:3000",
+	// 		DashboardPath: "/dashboard",
+	// 	},
+	// 	Data: DataConfig{
+	// 		SamplingInterval: time.Second,
+	// 		InputBuffer:      1000,
+	// 		Store:            "",
+	// 		Filter: FilterConfig{
+	// 			Includes: []string{},
+	// 			Excludes: []string{},
+	// 		},
+	// 		Timeseries: []TimeseriesConfig{
+	// 			{Name: "15m", Interval: 10 * time.Second, MaxCount: 90},
+	// 			{Name: "1h30m", Interval: time.Minute, MaxCount: 90},
+	// 			{Name: "2d", Interval: 30 * time.Minute, MaxCount: 96},
+	// 		},
+	// 	},
+	// }
 
 	if genConfigFilename != "" {
 		mc.genConfig(genConfigFilename)
@@ -117,12 +126,40 @@ func main() {
 			configContent = string(b)
 		}
 	}
-	if err := mc.loadConfig(configContent); err != nil {
+	if _, err := toml.Decode(configContent, &mc); err != nil {
 		panic(err)
 	}
-
+	if mc.Data.Store != "" {
+		if strings.HasPrefix(mc.Data.Store, "sqlite:") {
+			path := strings.TrimPrefix(mc.Data.Store, "sqlite:")
+			if storage, err := sqlite.NewStorage(path, mc.Data.InputBuffer); err != nil {
+				panic(err)
+			} else {
+				mc.Storage = storage
+			}
+		} else { // default to file storage
+			mc.Storage = metric.NewFileStorage(mc.Data.Store, mc.Data.InputBuffer)
+		}
+		if mc.Storage != nil {
+			if opener, ok := mc.Storage.(interface{ Open() error }); ok {
+				if err := opener.Open(); err != nil {
+					panic(err)
+				}
+			}
+		}
+	}
+	// load registry and inputs/outputs,
+	// it requires mc.Storage to restore the previous timeseries
+	if err := mc.loadCollector(configContent); err != nil {
+		panic(err)
+	}
 	mc.Collector.Start()
-	defer mc.Collector.Stop()
+	defer func() {
+		mc.Collector.Stop()
+		if closer, ok := mc.Storage.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}()
 
 	// http server
 	if mc.Http.Listen != "" {
@@ -133,9 +170,15 @@ func main() {
 		dash.SetPanelHeight(300)
 		dash.SetPanelMinWidth(400)
 		dash.SetPanelMaxWidth(600)
-		dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}, FieldNames: []string{"ohlc", "avg"}})
-		dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}, FieldNames: []string{"max"}})
-		dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, FieldNames: []string{"max", "min"}})
+		if mc.HasInput("cpu") {
+			dash.AddChart(metric.Chart{Title: "CPU Usage", MetricNames: []string{"cpu:cpu_*"}, FieldNames: []string{"ohlc", "avg"}})
+		}
+		if mc.HasInput("mem") {
+			dash.AddChart(metric.Chart{Title: "MEM Usage", MetricNames: []string{"mem:percent"}, FieldNames: []string{"max"}})
+		}
+		if mc.HasInput("go_runtime") {
+			dash.AddChart(metric.Chart{Title: "Go Routines", MetricNames: []string{"go:runtime:goroutines"}, FieldNames: []string{"max", "min"}})
+		}
 		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go:mem:heap_inuse"}, FieldNames: []string{"max", "min"}})
 		dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, FieldNames: []string{"abs-diff"}, Type: metric.ChartTypeLine})
 		dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
@@ -144,30 +187,31 @@ func main() {
 		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"http:latency"}, FieldNames: []string{"p50", "p99"}})
 		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine, ShowSymbol: true})
 		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
-		dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-		dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		if mc.HasInput("diskio") {
+			dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+		}
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
+		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
 			Handler:   httpstat.NewHandler(mc.Collector.C, mux),
 			ConnState: connState,
 		}
 		go func() {
-			fmt.Printf("Starting HTTP server on %s%s\n",
-				mc.Http.AdvAddr, mc.Http.DashboardPath)
+			slog.Info("Starting HTTP server on " + mc.Http.Listen + mc.Http.DashboardPath)
 			if err := svr.ListenAndServe(); err != nil {
 				if err == http.ErrServerClosed {
-					fmt.Println("HTTP server closed")
+					slog.Info("HTTP server closed")
 				} else {
-					fmt.Println("Error starting HTTP server:", err)
+					slog.Error("Error starting HTTP server", "error", err)
 				}
 			}
 		}()
 		defer svr.Close()
 	}
-
 	// wait signal ^C
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
@@ -183,6 +227,15 @@ func connState(conn net.Conn, state http.ConnState) {
 	}
 }
 
+func (mc Metrical) HasInput(name string) bool {
+	for _, n := range mc.instantiatedInputs {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (mc Metrical) genConfig(filename string) {
 	if filename == "" {
 		return
@@ -194,21 +247,18 @@ func (mc Metrical) genConfig(filename string) {
 	} else {
 		fd, err = os.OpenFile(filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
-			fmt.Println("Error open", filename, err.Error())
+			slog.Error("Error open config file for writing", "file", filename, "error", err)
 			return
 		}
 		defer fd.Close()
 	}
-	enc := toml.NewEncoder(fd)
-	enc.Encode(mc)
+	fmt.Fprintln(fd, "# This is the default configuration file for metrical.")
+	fmt.Fprintln(fd, configContent)
 	fmt.Fprintln(fd)
 	registry.GenerateSampleConfig(fd)
 }
 
-func (mc *Metrical) loadConfig(content string) error {
-	if _, err := toml.Decode(content, mc); err != nil {
-		return err
-	}
+func (mc *Metrical) loadCollector(content string) error {
 	if mc.Data.SamplingInterval < time.Second {
 		mc.Data.SamplingInterval = time.Second
 	}
@@ -216,7 +266,7 @@ func (mc *Metrical) loadConfig(content string) error {
 		metric.WithSamplingInterval(mc.Data.SamplingInterval),
 		metric.WithInputBuffer(mc.Data.InputBuffer),
 		metric.WithPrefix(mc.Data.Prefix),
-		metric.WithStorage(metric.NewFileStorage(mc.Data.Store)),
+		metric.WithStorage(mc.Storage),
 	}
 	for _, ts := range mc.Data.Timeseries {
 		if ts.Interval < time.Second {
@@ -235,8 +285,11 @@ func (mc *Metrical) loadConfig(content string) error {
 		options = append(options, metric.WithTimeseriesFilter(filter))
 	}
 	mc.Collector = metric.NewCollector(options...)
-	if err := registry.LoadConfig(mc.Collector, content); err != nil {
+	if inputs, outputs, err := registry.LoadConfig(mc.Collector, content); err != nil {
 		return err
+	} else {
+		mc.instantiatedInputs = inputs
+		_ = outputs
 	}
 	return nil
 }

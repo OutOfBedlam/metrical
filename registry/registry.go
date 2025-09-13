@@ -57,7 +57,10 @@ func GenerateSampleConfig(w io.Writer) {
 	}
 }
 
-func LoadConfig(c *metric.Collector, content string) error {
+func LoadConfig(c *metric.Collector, content string) ([]string, []string, error) {
+	var inputs []string
+	var outputs []string
+
 	cfg := make(map[string]any)
 	processedNames := map[string][]string{
 		"input":  {},
@@ -65,7 +68,7 @@ func LoadConfig(c *metric.Collector, content string) error {
 	}
 	meta, err := toml.Decode(content, &cfg)
 	if err != nil {
-		return err
+		return inputs, outputs, err
 	}
 	for _, keys := range meta.Keys() {
 		if len(keys) != 2 {
@@ -76,7 +79,7 @@ func LoadConfig(c *metric.Collector, content string) error {
 		case "input", "output":
 			reg, ok := registry[kind+"."+name]
 			if !ok {
-				return fmt.Errorf("unknown %s type: %s", kind, name)
+				return inputs, outputs, fmt.Errorf("unknown %s type: %s", kind, name)
 			}
 			if slices.Contains(processedNames[kind], name) {
 				continue
@@ -86,17 +89,17 @@ func LoadConfig(c *metric.Collector, content string) error {
 			for _, section := range sections {
 				v := reflect.New(reg.Type).Interface()
 				if b, err := toml.Marshal(section); err != nil {
-					return err
+					return inputs, outputs, err
 				} else {
 					if _, err := toml.Decode(string(b), v); err != nil {
-						return err
+						return inputs, outputs, err
 					}
 				}
 				var filter metric.Filter
 				if x, ok := section["filter"].(map[string]any); ok {
 					includes, excludes := x["includes"], x["excludes"]
 					if f, err := compileFilter(includes, excludes); err != nil {
-						return err
+						return inputs, outputs, err
 					} else {
 						filter = f
 					}
@@ -106,22 +109,24 @@ func LoadConfig(c *metric.Collector, content string) error {
 						input = &metric.FilterInput{Filter: filter, Input: input}
 					}
 					if err := c.AddInput(input); err != nil {
-						return err
+						return inputs, outputs, err
 					}
+					inputs = append(inputs, name)
 				} else if output, ok := v.(metric.Output); ok {
 					if filter != nil {
 						output = &metric.FilterOutput{Filter: filter, Output: output}
 					}
 					if err := c.AddOutput(output); err != nil {
-						return err
+						return inputs, outputs, err
 					}
+					outputs = append(outputs, name)
 				} else {
-					return fmt.Errorf("type %s is not implement %s", name, kind)
+					return inputs, outputs, fmt.Errorf("type %s is not implement %s", name, kind)
 				}
 			}
 		}
 	}
-	return nil
+	return inputs, outputs, nil
 }
 
 func compileFilter(includesAny any, excludesAny any) (metric.Filter, error) {

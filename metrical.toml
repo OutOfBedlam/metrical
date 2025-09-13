@@ -1,0 +1,43 @@
+[data]
+  sampling_interval = "10s"
+  input_buffer = 1000
+
+  ## optional prefix for all timeseries names
+  ## it will be prepended to the name of metrics for publish to expvar
+  ## refer to https://pkg.go.dev/expvar for details
+  prefix = ""
+
+  ## persistence store configuration
+  ## if empty, no persistence will be used (in-memory only)
+  # store = "sqlite:/path/to/metrical.db"
+  store = ""
+
+  [data.filter]
+    includes = []
+    excludes = []
+
+  [[data.timeseries]]
+    name = "1m"
+    interval = "60s"
+    length = 240 # 4 hours
+
+  [[data.timeseries]]
+    name = "1h"
+    interval = "60m"
+    length = 240 # 10 days
+
+  [[data.timeseries]]
+    name = "1d"
+    interval = "24h"
+    length = 240 # 480 days
+
+[http]
+  ## HTTP server configuration
+  ## 'listen' is the address to bind to (e.g. ":3000" for all interfaces on port 3000)
+  ## if listen is empty, no HTTP server will be started
+  listen = ":3000"
+  ## 'adv_addr' is the address to advertise to clients (e.g. "http://myhost:3000")
+  adv_addr = "http://localhost:3000"
+  ## 'dashboard' is the path to the dashboard (e.g. "/dashboard")
+  ## if 'dashboard' is empty, no dashboard will be served
+  dashboard = "/dashboard"

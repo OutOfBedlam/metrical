@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/OutOfBedlam/metric"
@@ -52,7 +53,7 @@ func (o Encoder) Process(pd metric.Product) error {
 		return nil
 	}
 	if o.DestUrl == "" {
-		fmt.Println(string(n))
+		fmt.Fprintln(os.Stdout, string(n))
 	} else {
 		rsp, err := http.DefaultClient.Post(
 			o.DestUrl,
