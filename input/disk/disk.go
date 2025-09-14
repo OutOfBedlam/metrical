@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/OutOfBedlam/metric"
@@ -49,6 +50,10 @@ func (d *Disk) Gather(g *metric.Gather) error {
 
 		device := partitions[i].Device
 		mountOpts := mountOptions(partitions[i].Opts)
+		if slices.Contains(mountOpts, "nobrowse") {
+			// Skip macOS volumes that are not user-visible
+			continue
+		}
 		mountInfo := map[string]string{
 			"path":   du.Path,
 			"device": strings.ReplaceAll(device, "/dev/", ""),

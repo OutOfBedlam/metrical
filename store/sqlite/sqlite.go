@@ -194,11 +194,6 @@ func (s *Storage) Load(id metric.SeriesID, metricName string) ([]metric.Product,
 			if samples.Valid {
 				pd.Value.(*metric.HistogramValue).Samples = samples.Int64
 			}
-			if value.Valid {
-				// value is median (P50)
-				pd.Value.(*metric.HistogramValue).Values = append(pd.Value.(*metric.HistogramValue).Values, value.Float64)
-				pd.Value.(*metric.HistogramValue).P = append(pd.Value.(*metric.HistogramValue).P, 0.5)
-			}
 			if other.Valid && other.String != "" {
 				var otherMap map[string]float64
 				if err := json.Unmarshal([]byte(other.String), &otherMap); err == nil {
