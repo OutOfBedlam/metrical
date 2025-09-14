@@ -16,18 +16,33 @@
     includes = []
     excludes = []
 
+  ## Define the timeseries to be collected and stored
+  ## 'id' is a unique identifier for the timeseries, It must start with a letter and
+  ##      can contain only uppercase letters, numbers, and underscores.
+  ## 'title' is a human-readable name for the timeseries.
+  ## 'interval' is the sampling interval for the timeseries (e.g. "10s" for 10 seconds)
+  ## 'length' is the number of data points to retain in the timeseries.
   [[data.timeseries]]
-    name = "1m"
+    id = "TS_10S"
+    title = "15 Minutes of 10 sec"
+    interval = "10s"
+    length = 90 # 15 minutes
+
+  [[data.timeseries]]
+    id = "TS_1M"
+    title = "4 Hours of 1 min"
     interval = "60s"
     length = 240 # 4 hours
 
   [[data.timeseries]]
-    name = "1h"
+    id = "TS_1H"
+    title = "10 Days of 1 hour"
     interval = "60m"
     length = 240 # 10 days
 
   [[data.timeseries]]
-    name = "1d"
+    id = "TS_1D"
+    title = "480 Days of 1 day"
     interval = "24h"
     length = 240 # 480 days
 

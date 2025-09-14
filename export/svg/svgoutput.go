@@ -83,15 +83,15 @@ func CanvasWithSnapshot(times []time.Time, values []metric.Value, field metric.S
 		}
 	}
 	svg := NewCanvas(200, 80)
-	svg.Title = fmt.Sprintf("%s %s", field.Name, field.Series)
-	svg.Value = field.Unit.Format(lastValue, 1)
-	if field.Unit == metric.UnitPercent {
+	svg.Title = fmt.Sprintf("%s %s", field.MeasureName, field.SeriesID.Title())
+	svg.Value = field.MeasureType.Unit().Format(lastValue, 1)
+	if field.MeasureType.Unit() == metric.UnitPercent {
 		svg.GridYMin = 0
 		svg.GridYMax = 100
 	} else {
 		svg.GridYMargin = 0.5
 	}
-	svg.ValueUnit = field.Unit
+	svg.ValueUnit = field.MeasureType.Unit()
 
 	svg.GridXInterval = interval
 	svg.GridXMaxCount = maxCount
