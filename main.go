@@ -19,6 +19,7 @@ import (
 	_ "github.com/OutOfBedlam/metrical/input/disk"
 	_ "github.com/OutOfBedlam/metrical/input/diskio"
 	_ "github.com/OutOfBedlam/metrical/input/gostat"
+	_ "github.com/OutOfBedlam/metrical/input/opcua"
 	_ "github.com/OutOfBedlam/metrical/input/ps"
 	"github.com/OutOfBedlam/metrical/middleware/httpstat"
 	_ "github.com/OutOfBedlam/metrical/output/ndjson"
@@ -149,7 +150,7 @@ func main() {
 		dash.PageTitle = "Metrical - Demo"
 		dash.ShowRemains = false
 		dash.SetTheme("light")
-		dash.SetPanelHeight("300px")   // default
+		dash.SetPanelHeight("280px")   // default
 		dash.SetPanelMinWidth("400px") // default
 		dash.SetPanelMaxWidth("1fr")   // default
 		if mc.HasInput("load") {
@@ -169,20 +170,20 @@ func main() {
 		}
 		dash.AddChart(metric.Chart{Title: "Go Heap In Use", MetricNames: []string{"go:mem:heap_inuse"}, FieldNames: []string{"max", "min"}})
 		if mc.HasInput("net") {
-			dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, FieldNames: []string{"abs-diff"}, Type: metric.ChartTypeLine})
-			dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-			dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:*:drop_in", "net:*:drop_out", "net:*:err_in", "net:*:err_out"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeScatter, ShowSymbol: true})
+			dash.AddChart(metric.Chart{Title: "Network I/O", MetricNames: []string{"net:*:bytes_recv", "net:*:bytes_sent"}, FieldNames: []string{"abs_diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Network Packets", MetricNames: []string{"net:*:packets_recv", "net:*:packets_sent"}, FieldNames: []string{"non_negative_diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Network Errors", MetricNames: []string{"net:*:drop_in", "net:*:drop_out", "net:*:err_in", "net:*:err_out"}, FieldNames: []string{"non_negative_diff"}, Type: metric.ChartTypeScatter, ShowSymbol: true})
 		}
 		if mc.HasInput("netstat") {
 			dash.AddChart(metric.Chart{Title: "Netstat", MetricNames: []string{"netstat:tcp_*", "netstat:udp_*"}, FieldNames: []string{"last"}})
 		}
 		if mc.HasInput("diskio") {
-			dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-			dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
-			dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non-negative-diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Disk I/O Bytes", MetricNames: []string{"diskio:*:read_bytes", "diskio:*:write_bytes"}, FieldNames: []string{"non_negative_diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Disk I/O Count", MetricNames: []string{"diskio:*:read_count", "diskio:*:write_count"}, FieldNames: []string{"non_negative_diff"}, Type: metric.ChartTypeLine})
+			dash.AddChart(metric.Chart{Title: "Disk I/O Time", MetricNames: []string{"diskio:*:read_time", "diskio:*:write_time", "diskio:*:io_time", "diskio:*:weighted_io_time"}, FieldNames: []string{"non_negative_diff"}, Type: metric.ChartTypeLine})
 		}
 		dash.AddChart(metric.Chart{Title: "HTTP Latency", MetricNames: []string{"http:latency"}, FieldNames: []string{"p50", "p90", "p99"}})
-		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine, ShowSymbol: true})
+		dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine, ShowSymbol: false})
 		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
