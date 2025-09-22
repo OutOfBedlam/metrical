@@ -109,7 +109,7 @@ func LoadConfig(c *metric.Collector, content string) ([]string, []string, error)
 						input = &metric.FilterInput{Filter: filter, Input: input}
 					}
 					if err := c.AddInput(input); err != nil {
-						return inputs, outputs, err
+						return inputs, outputs, fmt.Errorf("input %T error %v", input, err)
 					}
 					inputs = append(inputs, name)
 				} else if output, ok := v.(metric.Output); ok {
@@ -117,7 +117,7 @@ func LoadConfig(c *metric.Collector, content string) ([]string, []string, error)
 						output = &metric.FilterOutput{Filter: filter, Output: output}
 					}
 					if err := c.AddOutput(output); err != nil {
-						return inputs, outputs, err
+						return inputs, outputs, fmt.Errorf("output %T error %v", output, err)
 					}
 					outputs = append(outputs, name)
 				} else {
