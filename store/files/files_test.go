@@ -24,24 +24,21 @@ func TestTimeseriesStorage(t *testing.T) {
 		storage.Close()
 		time.Sleep(1 * time.Second)
 	}()
-	ts := metric.NewTimeSeries(time.Second, 3, metric.NewMeter())
 	seriesID, err := metric.NewSeriesID("test_measure:test_field", "Test Measure", time.Second, 3)
+	ts := metric.NewTimeSeries(time.Second, 3, metric.NewMeter(),
+		metric.WithMeta(metric.SeriesInfo{
+			MeasureName: "test_measure",
+			MeasureType: metric.CounterType(metric.UnitShort),
+			SeriesID:    seriesID,
+		}),
+		metric.WithListener(func(prd metric.Product) {
+			seriesID, err := metric.NewSeriesID("ts_1m", "Test Measure", time.Second, 3)
+			require.NoError(t, err)
+			err = storage.Store(seriesID, prd, false)
+			require.NoError(t, err)
+		}),
+	)
 	require.NoError(t, err)
-	ts.SetMeta(metric.SeriesInfo{
-		MeasureName: "test_measure",
-		MeasureType: metric.CounterType(metric.UnitShort),
-		SeriesID:    seriesID,
-	})
-	ts.SetListener(func(tb metric.TimeBin, meta any) {
-		var prd metric.Product
-		if ok := metric.ToProduct(&prd, tb, meta); !ok {
-			return
-		}
-		seriesID, err := metric.NewSeriesID("ts_1m", "Test Measure", time.Second, 3)
-		require.NoError(t, err)
-		err = storage.Store(seriesID, prd, false)
-		require.NoError(t, err)
-	})
 	ts.Add(1.0)
 	time.Sleep(1 * time.Second)
 	ts.Add(2.0)
