@@ -158,6 +158,20 @@ func (s *Storage) Load(id metric.SeriesID, metricName string) ([]metric.Product,
 			if sum.Valid {
 				pd.Value.(*metric.GaugeValue).Sum = sum.Float64
 			}
+		case "timer":
+			pd.Value = &metric.TimerValue{}
+			if samples.Valid {
+				pd.Value.(*metric.TimerValue).Samples = samples.Int64
+			}
+			if sum.Valid {
+				pd.Value.(*metric.TimerValue).Sum = time.Duration(sum.Float64)
+			}
+			if min.Valid {
+				pd.Value.(*metric.TimerValue).Min = time.Duration(min.Float64)
+			}
+			if max.Valid {
+				pd.Value.(*metric.TimerValue).Max = time.Duration(max.Float64)
+			}
 		case "meter":
 			pd.Value = &metric.MeterValue{}
 			if samples.Valid {
@@ -269,6 +283,9 @@ func (s *Storage) write(rec *Record) {
 	case *metric.GaugeValue:
 		columns = append(columns, "samples", "value", "sum")
 		values = append(values, p.Samples, p.Value, p.Sum)
+	case *metric.TimerValue:
+		columns = append(columns, "samples", "sum", "min", "max")
+		values = append(values, p.Samples, p.Sum.Nanoseconds(), p.Min.Nanoseconds(), p.Max.Nanoseconds())
 	case *metric.MeterValue:
 		columns = append(columns, "samples", "value", "sum", "first_value", "last_value", "min", "max")
 		value := 0.0
