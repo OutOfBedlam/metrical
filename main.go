@@ -1,7 +1,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -67,6 +67,9 @@ type FilterConfig struct {
 
 //go:embed "metrical.toml"
 var configContent string
+
+//go:embed static/*
+var staticFS embed.FS
 
 func main() {
 	var configFilename string
@@ -149,6 +152,7 @@ func main() {
 		dash := metric.NewDashboard(mc.Collector)
 		dash.PageTitle = "Metrical - Demo"
 		dash.ShowRemains = false
+		dash.Option.JsSrc = []string{"/static/js/echarts.min.js"}
 		dash.SetTheme("light")
 		dash.SetPanelHeight("280px")   // default
 		dash.SetPanelMinWidth("400px") // default
@@ -187,6 +191,7 @@ func main() {
 		dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, dash)
+		mux.Handle("/static/", http.FileServerFS(staticFS))
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
