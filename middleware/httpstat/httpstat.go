@@ -60,10 +60,19 @@ type ResponseWriterWrapper struct {
 	statusCode    int
 }
 
+var _ http.ResponseWriter = (*ResponseWriterWrapper)(nil)
+var _ http.Flusher = (*ResponseWriterWrapper)(nil)
+
 func (w *ResponseWriterWrapper) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
 	w.responseBytes += n
 	return n, err
+}
+
+func (w *ResponseWriterWrapper) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
