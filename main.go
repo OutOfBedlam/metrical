@@ -180,7 +180,9 @@ func main() {
 		mux.Handle(mc.Http.DashboardPath, mc.makeDashboard())
 		mux.Handle("/static/", http.FileServerFS(staticFS))
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
-		mux.Handle("/debug/logs/", tailer.Handler("/debug/logs/", logFilename))
+		lh := tailer.NewHandler("/debug/logs/", logFilename,
+			tailer.WithPlugins(tailer.NewColoring("default")))
+		mux.Handle("/debug/logs/", lh)
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
 			Handler:   httpstat.NewHandler(mc.Collector.C, mux),
