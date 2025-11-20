@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.5.0 h1:W5quZX/G/csjUnuI8SUYlsHs9M38FC7znL0lIO+DvMg=
 github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
-github.com/OutOfBedlam/metric v0.0.0-20251024004646-429acedef73c h1:ZuCUCNMMWFBjADNRCNNHfP0oLpf4g6+G2ZGZhSfsSaA=
-github.com/OutOfBedlam/metric v0.0.0-20251024004646-429acedef73c/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
+github.com/OutOfBedlam/metric v0.0.0-20251120040929-5d663a055c59 h1:YFQKvsfVugeyN5JydHrHSxtcpC98jepg79dZbG8yV9s=
+github.com/OutOfBedlam/metric v0.0.0-20251120040929-5d663a055c59/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
 github.com/OutOfBedlam/tailer v0.0.0-20251120040826-5325470119db h1:E4uwKr8sJb4fWLnBg6ObunjjPSGItaDp1GzqTu13bzw=
 github.com/OutOfBedlam/tailer v0.0.0-20251120040826-5325470119db/go.mod h1:KCesT4bAFIRj4GuIRKoyD1H44FArONI4zj4VzcrLaTs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
