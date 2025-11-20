@@ -4,8 +4,8 @@ go 1.24.5
 
 require (
 	github.com/BurntSushi/toml v1.5.0
-	github.com/OutOfBedlam/metric v0.0.0-20251120040929-5d663a055c59
-	github.com/OutOfBedlam/tailer v0.0.0-20251120040826-5325470119db
+	github.com/OutOfBedlam/metric v0.0.0-20251120054948-1cda1e68b925
+	github.com/OutOfBedlam/tailer v0.0.0-20251120054902-04fc424f146f
 	github.com/gopcua/opcua v0.8.0
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/shirou/gopsutil/v4 v4.25.9

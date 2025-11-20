@@ -11,6 +11,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -79,9 +80,11 @@ func main() {
 	var logLevelStr string = "INFO"
 	var logFilename string = ""
 	var logStdout bool = false
+	var tailPaths TailPaths
 
 	flag.StringVar(&configFilename, "config", "", "metrical config file path")
 	flag.StringVar(&genConfigFilename, "gen-config", "", "Generates default config to the given filename")
+	flag.Var(&tailPaths, "tail", "File(s) to tail and output as metrics (can be specified multiple times)")
 	flag.StringVar(&logLevelStr, "log-level", logLevelStr, "log level [DEBUG, INFO, WARN, ERROR]")
 	flag.StringVar(&logFilename, "log-filename", logFilename, "log output file path ('-' for stdout)")
 	flag.BoolVar(&logStdout, "log-stdout", logStdout, "log to stdout in addition to file")
@@ -180,22 +183,7 @@ func main() {
 		mux.Handle(mc.Http.DashboardPath, mc.makeDashboard())
 		mux.Handle("/static/", http.FileServerFS(staticFS))
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
-		to := tailer.NewTerminal(
-			tailer.WithFontSize(12),
-			tailer.WithTheme(tailer.ThemeDefault),
-			// tailer.WithTailLabel(tailer.Colorize("syslog", tailer.ColorPink), "/var/log/syslog", tailer.WithSyntaxColoring("syslog")),
-			tailer.WithTailLabel(tailer.Colorize("metric", tailer.ColorOrange), logFilename, tailer.WithSyntaxColoring("level", "slog-text")),
-			tailer.WithLocalization(map[string]string{
-				"Log Viewer":           "Metrical Logs",
-				"All Logs":             "All Log Files",
-				"No Logs":              "No Log Files",
-				"Enter filter text...": "Filter text...",
-				"Apply":                "Apply",
-				"Clear":                "Reset",
-			}),
-		)
-		defer to.Close()
-		mux.Handle("/debug/logs/", to.Handler("/debug/logs/"))
+		mux.Handle("/debug/logs/", mc.makeTerminal("/debug/logs/", logFilename, tailPaths))
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
 			Handler:   httpstat.NewHandler(mc.Collector.C, mux),
@@ -341,4 +329,63 @@ func (mc *Metrical) makeDashboard() *metric.Dashboard {
 	dash.AddChart(metric.Chart{Title: "HTTP I/O", MetricNames: []string{"http:bytes_recv", "http:bytes_sent"}, Type: metric.ChartTypeLine, ShowSymbol: false})
 	dash.AddChart(metric.Chart{Title: "HTTP Status", MetricNames: []string{"http:status_[1-5]xx"}, Type: metric.ChartTypeBarStack})
 	return dash
+}
+
+type TailPaths []string
+
+var _ flag.Value = (*TailPaths)(nil)
+
+func (t *TailPaths) String() string {
+	return strings.Join(*t, ",")
+}
+
+func (t *TailPaths) Set(value string) error {
+	*t = append(*t, value)
+	return nil
+}
+
+var labelColors = []string{
+	tailer.ColorPurple,
+	tailer.ColorMagenta,
+	tailer.ColorYellow,
+	tailer.ColorCyan,
+	tailer.ColorGreen,
+	tailer.ColorRed,
+}
+
+func (mc *Metrical) makeTerminal(cutPrefix string, logFilename string, tailPaths TailPaths) http.Handler {
+	termOpts := []tailer.TerminalOption{
+		tailer.WithFontSize(12),
+		tailer.WithTheme(tailer.ThemeDefault),
+		tailer.WithLocalization(map[string]string{
+			"Log Viewer":           "Metrical Logs",
+			"All Logs":             "All Log Files",
+			"No Logs":              "No Log Files",
+			"Enter filter text...": "Filter text...",
+			"Apply":                "Apply",
+			"Clear":                "Reset",
+		}),
+		tailer.WithTailLabel(
+			tailer.Colorize("metric", tailer.ColorOrange),
+			logFilename,
+			tailer.WithSyntaxHighlighting("level", "slog-text"),
+		),
+	}
+	for i, logPath := range tailPaths {
+		base := filepath.Base(logPath)
+		syntax := []string{}
+		if base == "syslog" || base == "messages" {
+			syntax = append(syntax, "syslog")
+		} else {
+			syntax = append(syntax, "level")
+		}
+		termOpts = append(termOpts,
+			tailer.WithTailLabel(
+				tailer.Colorize(filepath.Base(logPath), labelColors[i%len(labelColors)]),
+				logPath,
+				tailer.WithSyntaxHighlighting(syntax...),
+			),
+		)
+	}
+	return tailer.NewTerminal(termOpts...).Handler(cutPrefix)
 }
