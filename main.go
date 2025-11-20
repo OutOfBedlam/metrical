@@ -180,15 +180,28 @@ func main() {
 		mux.Handle(mc.Http.DashboardPath, mc.makeDashboard())
 		mux.Handle("/static/", http.FileServerFS(staticFS))
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
-		to := tailer.DefaultTerminalOption()
-		to.FontSize = 12
-		to.Theme = tailer.ThemeMolokai
-		mux.Handle("/debug/logs/", to.Handler("/debug/logs/", logFilename, tailer.WithSyntaxColoring("level", "slog")))
+		to := tailer.NewTerminal(
+			tailer.WithFontSize(12),
+			tailer.WithTheme(tailer.ThemeDefault),
+			// tailer.WithTailLabel(tailer.Colorize("syslog", tailer.ColorPink), "/var/log/syslog", tailer.WithSyntaxColoring("syslog")),
+			tailer.WithTailLabel(tailer.Colorize("metric", tailer.ColorOrange), logFilename, tailer.WithSyntaxColoring("level", "slog-text")),
+			tailer.WithLocalization(map[string]string{
+				"Log Viewer":           "Metrical Logs",
+				"All Logs":             "All Log Files",
+				"No Logs":              "No Log Files",
+				"Enter filter text...": "Filter text...",
+				"Apply":                "Apply",
+				"Clear":                "Reset",
+			}),
+		)
+		defer to.Close()
+		mux.Handle("/debug/logs/", to.Handler("/debug/logs/"))
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
 			Handler:   httpstat.NewHandler(mc.Collector.C, mux),
 			ConnState: connState,
 		}
+		defer svr.Close()
 		go func() {
 			slog.Info("Starting HTTP server on " + mc.Http.AdvAddr + mc.Http.DashboardPath)
 			if err := svr.ListenAndServe(); err != nil {
@@ -199,17 +212,11 @@ func main() {
 				}
 			}
 		}()
-		defer svr.Close()
 	}
 	// wait signal ^C
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	<-signalCh
-
-	// shutdown tailer watchers (sse sessions)
-	// without this, the http server may block on Shutdown()
-	// if there are active watchers
-	tailer.Shutdown()
 }
 
 func connState(conn net.Conn, state http.ConnState) {
