@@ -179,9 +179,13 @@ func main() {
 
 	// http server
 	if mc.Http.Listen != "" {
+		fileSvrFS := http.FileServerFS(staticFS)
 		mux := http.NewServeMux()
 		mux.Handle(mc.Http.DashboardPath, mc.makeDashboard())
-		mux.Handle("/static/", http.FileServerFS(staticFS))
+		mux.Handle("/static/", fileSvrFS)
+		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "static/favicon.ico")
+		})
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
 		mux.Handle("/debug/logs/", mc.makeTerminal("/debug/logs/", logFilename, tailPaths))
 		svr := &http.Server{
@@ -365,7 +369,7 @@ func (mc *Metrical) makeTerminal(cutPrefix string, logFilename string, tailPaths
 			"Apply":                "Apply",
 			"Clear":                "Reset",
 		}),
-		tailer.WithControlBar(tailer.ControlBar{Hide: false, FontSize: 12, FontFamily: "Arial, sans-serif"}),
+		tailer.WithControlBar(tailer.ControlBar{Hide: false, FontSize: 12, FontFamily: "Arial,\"San Francisco\",sans-serif"}),
 		tailer.WithTailLabel(
 			tailer.Colorize("metric", tailer.ColorOrange),
 			logFilename,
