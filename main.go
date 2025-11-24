@@ -365,6 +365,7 @@ func (mc *Metrical) makeTerminal(cutPrefix string, logFilename string, tailPaths
 			"Apply":                "Apply",
 			"Clear":                "Reset",
 		}),
+		tailer.WithControlBar(tailer.ControlBar{Hide: false, FontSize: 12, FontFamily: "Arial, sans-serif"}),
 		tailer.WithTailLabel(
 			tailer.Colorize("metric", tailer.ColorOrange),
 			logFilename,
