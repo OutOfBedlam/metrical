@@ -1,8 +1,10 @@
 package httpstat
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"time"
@@ -62,6 +64,7 @@ type ResponseWriterWrapper struct {
 
 var _ http.ResponseWriter = (*ResponseWriterWrapper)(nil)
 var _ http.Flusher = (*ResponseWriterWrapper)(nil)
+var _ http.Hijacker = (*ResponseWriterWrapper)(nil)
 
 func (w *ResponseWriterWrapper) Write(b []byte) (int, error) {
 	n, err := w.ResponseWriter.Write(b)
@@ -84,6 +87,14 @@ func (w *ResponseWriterWrapper) WriteHeader(statusCode int) {
 	w.headerWritten = true
 	w.ResponseWriter.WriteHeader(statusCode)
 	w.statusCode = statusCode
+}
+
+func (w *ResponseWriterWrapper) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := w.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, fmt.Errorf("the ResponseWriter does not support hijacking")
+	}
+	return hj.Hijack()
 }
 
 type ByteCounter struct {
