@@ -11,7 +11,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -27,7 +26,11 @@ import (
 	_ "github.com/OutOfBedlam/metrical/output/ndjson"
 	"github.com/OutOfBedlam/metrical/registry"
 	"github.com/OutOfBedlam/metrical/store/sqlite"
-	"github.com/OutOfBedlam/tailer"
+	"github.com/OutOfBedlam/webterm"
+	"github.com/OutOfBedlam/webterm/webexec"
+	"github.com/OutOfBedlam/webterm/webssh"
+	"github.com/OutOfBedlam/webterm/webtail"
+	"golang.org/x/crypto/ssh"
 )
 
 //go:generate go run main.go -gen-config ./metrical-example.conf
@@ -42,9 +45,39 @@ type Metrical struct {
 }
 
 type HttpConfig struct {
-	Listen        string `toml:"listen"`
-	AdvAddr       string `toml:"adv_addr"`
-	DashboardPath string `toml:"dashboard"`
+	Listen        string          `toml:"listen"`
+	AdvAddr       string          `toml:"adv_addr"`
+	DashboardPath string          `toml:"dashboard"`
+	Tails         []WebTailConfig `toml:"tails"`
+	Terms         []WebTermConfig `toml:"term"`
+	SSHs          []WebSSHConfig  `toml:"ssh"`
+}
+
+type WebTailConfig struct {
+	Path  string        `toml:"path"`
+	Files []WebTailFile `toml:"file"`
+}
+
+type WebTailFile struct {
+	Filename   string   `toml:"filename"`
+	Label      string   `toml:"label"`
+	Highlights []string `toml:"highlights"`
+}
+
+type WebTermConfig struct {
+	Path    string   `toml:"path"`
+	Command string   `toml:"command"`
+	Args    []string `toml:"args"`
+	Dir     string   `toml:"dir"`
+}
+
+type WebSSHConfig struct {
+	Path     string `toml:"path"`
+	Host     string `toml:"host"`
+	Port     int    `toml:"port"`
+	User     string `toml:"user"`
+	Password string `toml:"password"`
+	Keyfile  string `toml:"keyfile"`
 }
 
 type DataConfig struct {
@@ -80,11 +113,9 @@ func main() {
 	var logLevelStr string = "INFO"
 	var logFilename string = ""
 	var logStdout bool = false
-	var tailPaths TailPaths
 
 	flag.StringVar(&configFilename, "config", "", "metrical config file path")
 	flag.StringVar(&genConfigFilename, "gen-config", "", "Generates default config to the given filename")
-	flag.Var(&tailPaths, "tail", "File(s) to tail and output as metrics (can be specified multiple times)")
 	flag.StringVar(&logLevelStr, "log-level", logLevelStr, "log level [DEBUG, INFO, WARN, ERROR]")
 	flag.StringVar(&logFilename, "log-filename", logFilename, "log output file path ('-' for stdout)")
 	flag.BoolVar(&logStdout, "log-stdout", logStdout, "log to stdout in addition to file")
@@ -181,13 +212,32 @@ func main() {
 	if mc.Http.Listen != "" {
 		fileSvrFS := http.FileServerFS(staticFS)
 		mux := http.NewServeMux()
-		mux.Handle(mc.Http.DashboardPath, mc.makeDashboard())
+		if path := mc.Http.DashboardPath; path != "" {
+			path = strings.TrimSuffix(path, "/") + "/"
+			mux.Handle(path, mc.makeDashboard())
+		}
+		for _, cfg := range mc.Http.Tails {
+			path := strings.TrimSuffix(cfg.Path, "/") + "/"
+			for i, v := range cfg.Files {
+				v.Filename = strings.ReplaceAll(v.Filename, "~", os.Getenv("HOME"))
+				v.Filename = strings.ReplaceAll(v.Filename, "${log-filename}", logFilename)
+				cfg.Files[i] = v
+			}
+			mux.Handle(path, mc.makeTail(path, cfg.Files))
+		}
+		for _, cfg := range mc.Http.Terms {
+			path := strings.TrimSuffix(cfg.Path, "/") + "/"
+			mux.Handle(path, mc.makeTerminal(path, cfg.Command, cfg.Args, cfg.Dir))
+		}
+		for _, cfg := range mc.Http.SSHs {
+			path := strings.TrimSuffix(cfg.Path, "/") + "/"
+			mux.Handle(path, mc.makeSSH(path, cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Keyfile, "tail -F /var/log/syslog"))
+		}
 		mux.Handle("/static/", fileSvrFS)
 		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "static/favicon.ico")
 		})
 		mux.Handle("/debug/pprof", pprof.Handler("/debug/pprof"))
-		mux.Handle("/debug/logs/", mc.makeTerminal("/debug/logs/", logFilename, tailPaths))
 		svr := &http.Server{
 			Addr:      mc.Http.Listen,
 			Handler:   httpstat.NewHandler(mc.Collector.C, mux),
@@ -335,33 +385,22 @@ func (mc *Metrical) makeDashboard() *metric.Dashboard {
 	return dash
 }
 
-type TailPaths []string
+func (mc *Metrical) makeTail(cutPrefix string, files []WebTailFile) http.Handler {
+	tc := []webtail.TailConfig{}
+	for _, f := range files {
+		tc = append(tc, webtail.TailConfig{
+			Filename:   f.Filename,
+			Label:      f.Label,
+			Highlights: f.Highlights,
+		})
+	}
 
-var _ flag.Value = (*TailPaths)(nil)
-
-func (t *TailPaths) String() string {
-	return strings.Join(*t, ",")
-}
-
-func (t *TailPaths) Set(value string) error {
-	*t = append(*t, value)
-	return nil
-}
-
-var labelColors = []string{
-	tailer.ColorPurple,
-	tailer.ColorMagenta,
-	tailer.ColorYellow,
-	tailer.ColorCyan,
-	tailer.ColorGreen,
-	tailer.ColorRed,
-}
-
-func (mc *Metrical) makeTerminal(cutPrefix string, logFilename string, tailPaths TailPaths) http.Handler {
-	termOpts := []tailer.TerminalOption{
-		tailer.WithFontSize(12),
-		tailer.WithTheme(tailer.ThemeDefault),
-		tailer.WithLocalization(map[string]string{
+	return webterm.New(
+		&webtail.WebTail{Tails: tc},
+		webterm.WithCutPrefix(cutPrefix),
+		webterm.WithTheme(webterm.ThemeDefault),
+		webterm.WithFontSize(11),
+		webterm.WithLocalization(map[string]string{
 			"Log Viewer":           "Metrical Logs",
 			"All Logs":             "All Log Files",
 			"No Logs":              "No Log Files",
@@ -369,28 +408,43 @@ func (mc *Metrical) makeTerminal(cutPrefix string, logFilename string, tailPaths
 			"Apply":                "Apply",
 			"Clear":                "Reset",
 		}),
-		tailer.WithControlBar(tailer.ControlBar{Hide: false, FontSize: 12, FontFamily: "Arial,\"San Francisco\",sans-serif"}),
-		tailer.WithTailLabel(
-			tailer.Colorize("metric", tailer.ColorOrange),
-			logFilename,
-			tailer.WithSyntaxHighlighting("level", "slog-text"),
-		),
+	)
+}
+
+func (mc *Metrical) makeTerminal(cutPrefix string, cmd string, args []string, dir string) http.Handler {
+	term := webterm.New(
+		&webexec.WebExec{
+			Command: cmd,
+			Args:    args,
+			Dir:     dir,
+		},
+		webterm.WithCutPrefix(cutPrefix),
+		webterm.WithTheme(webterm.ThemeDracula),
+	)
+	return term
+}
+
+func (mc *Metrical) makeSSH(cutPrefix string, host string, port int, user string, pass string, keyfile string, cmd string) http.Handler {
+	auth := []ssh.AuthMethod{}
+	if pass != "" {
+		auth = append(auth, webssh.AuthPassword(pass))
 	}
-	for i, logPath := range tailPaths {
-		base := filepath.Base(logPath)
-		syntax := []string{}
-		if base == "syslog" || base == "messages" {
-			syntax = append(syntax, "syslog")
-		} else {
-			syntax = append(syntax, "level")
-		}
-		termOpts = append(termOpts,
-			tailer.WithTailLabel(
-				tailer.Colorize(filepath.Base(logPath), labelColors[i%len(labelColors)]),
-				logPath,
-				tailer.WithSyntaxHighlighting(syntax...),
-			),
-		)
+	if keyfile != "" {
+		key, _ := os.ReadFile(keyfile)
+		auth = append(auth, webssh.AuthPrivateKey(key))
 	}
-	return tailer.NewTerminal(termOpts...).Handler(cutPrefix)
+
+	term := webterm.New(
+		&webssh.WebSSH{
+			Host:     host,
+			Port:     port,
+			User:     user,
+			Auth:     auth,
+			TermType: "xterm-256color",
+			Command:  cmd,
+		},
+		webterm.WithCutPrefix(cutPrefix),
+		webterm.WithTheme(webterm.ThemeMolokai),
+	)
+	return term
 }
