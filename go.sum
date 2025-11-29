@@ -2,8 +2,8 @@ github.com/BurntSushi/toml v1.5.0 h1:W5quZX/G/csjUnuI8SUYlsHs9M38FC7znL0lIO+DvMg
 github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/OutOfBedlam/metric v0.0.0-20251120054948-1cda1e68b925 h1:sF295kwcj3ifVRcx3Ul65Je88sOtdD5oJaIHw44t2dk=
 github.com/OutOfBedlam/metric v0.0.0-20251120054948-1cda1e68b925/go.mod h1:utCPVqpc0xv/lZOrNP1CPpl+Fot5DjWdWsBSx3iYCfo=
-github.com/OutOfBedlam/webterm v0.0.0-20251128124700-74e3727d18fe h1:9Yvq6gQACR4QVE9aBc/eMUPzLHutM1uCvHh1eSQwMCc=
-github.com/OutOfBedlam/webterm v0.0.0-20251128124700-74e3727d18fe/go.mod h1:bojDKgSl2+x2UxMap19QA5Z3Ifisp/cYsHo0SbAH8aw=
+github.com/OutOfBedlam/webterm v0.0.0-20251129122740-cbf3206c3849 h1:cDSaUHuWE4mRdw3QZ2J2hr+jTiBVHfiZjH3c2Cycso0=
+github.com/OutOfBedlam/webterm v0.0.0-20251129122740-cbf3206c3849/go.mod h1:bojDKgSl2+x2UxMap19QA5Z3Ifisp/cYsHo0SbAH8aw=
 github.com/creack/pty v1.1.24 h1:bJrF4RRfyJnbTJqzRLHzcGaZK1NeM5kTC9jGgovnR1s=
 github.com/creack/pty v1.1.24/go.mod h1:08sCNb52WyoAwi2QDyzUCTgcvVFhUzewun7wtTfvcwE=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=

@@ -36,6 +36,7 @@ import (
 //go:generate go run main.go -gen-config ./metrical-example.conf
 
 type Metrical struct {
+	Log       LogConfig         `toml:"log"`
 	Data      DataConfig        `toml:"data"`
 	Http      HttpConfig        `toml:"http"`
 	Collector *metric.Collector `toml:"-"`
@@ -44,13 +45,51 @@ type Metrical struct {
 	instantiatedInputs []string
 }
 
+type LogConfig struct {
+	Filename string   `toml:"filename"`
+	Stdout   bool     `toml:"stdout"`
+	Level    LogLevel `toml:"level"`
+}
+
+type LogLevel string
+
+var _ flag.Value = (*LogLevel)(nil)
+
+func (ll *LogLevel) String() string {
+	return string(*ll)
+}
+
+func (ll *LogLevel) Set(value string) error {
+	*ll = LogLevel(strings.ToUpper(value))
+	return nil
+}
+
+func (ll *LogLevel) Level() *slog.LevelVar {
+	var logLevel = new(slog.LevelVar)
+	switch string(*ll) {
+	case "DEBUG":
+		logLevel.Set(slog.LevelDebug)
+	case "WARN":
+		logLevel.Set(slog.LevelWarn)
+	case "ERROR":
+		logLevel.Set(slog.LevelError)
+	default:
+		logLevel.Set(slog.LevelInfo)
+	}
+	return logLevel
+}
+
 type HttpConfig struct {
-	Listen        string          `toml:"listen"`
-	AdvAddr       string          `toml:"adv_addr"`
-	DashboardPath string          `toml:"dashboard"`
-	Tails         []WebTailConfig `toml:"tails"`
-	Terms         []WebTermConfig `toml:"term"`
-	SSHs          []WebSSHConfig  `toml:"ssh"`
+	Listen    string            `toml:"listen"`
+	AdvAddr   string            `toml:"adv_addr"`
+	Dashboard []DashboardConfig `toml:"dashboard"`
+	Tails     []WebTailConfig   `toml:"tail"`
+	Terms     []WebTermConfig   `toml:"term"`
+	SSHs      []WebSSHConfig    `toml:"ssh"`
+}
+
+type DashboardConfig struct {
+	Path string `toml:"path"`
 }
 
 type WebTailConfig struct {
@@ -78,6 +117,7 @@ type WebSSHConfig struct {
 	User     string `toml:"user"`
 	Password string `toml:"password"`
 	Keyfile  string `toml:"keyfile"`
+	Command  string `toml:"command"`
 }
 
 type DataConfig struct {
@@ -110,51 +150,10 @@ var staticFS embed.FS
 func main() {
 	var configFilename string
 	var genConfigFilename string
-	var logLevelStr string = "INFO"
-	var logFilename string = ""
-	var logStdout bool = false
 
 	flag.StringVar(&configFilename, "config", "", "metrical config file path")
 	flag.StringVar(&genConfigFilename, "gen-config", "", "Generates default config to the given filename")
-	flag.StringVar(&logLevelStr, "log-level", logLevelStr, "log level [DEBUG, INFO, WARN, ERROR]")
-	flag.StringVar(&logFilename, "log-filename", logFilename, "log output file path ('-' for stdout)")
-	flag.BoolVar(&logStdout, "log-stdout", logStdout, "log to stdout in addition to file")
 	flag.Parse()
-
-	if logFilename == "-" {
-		logStdout = true
-		logFilename = ""
-	}
-
-	logWriter := io.Discard
-	if logStdout {
-		logWriter = os.Stdout
-	}
-	if logFilename != "" {
-		logFile, err := os.OpenFile(logFilename, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			panic(fmt.Sprintf("Failed to open log file %s: %v", logFilename, err))
-		}
-		if logStdout {
-			logWriter = io.MultiWriter(logWriter, logFile)
-		} else {
-			logWriter = logFile
-		}
-	}
-
-	var logLevel = new(slog.LevelVar)
-	logHandler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: logLevel})
-	slog.SetDefault(slog.New(logHandler))
-	switch strings.ToUpper(logLevelStr) {
-	case "DEBUG":
-		logLevel.Set(slog.LevelDebug)
-	case "WARN":
-		logLevel.Set(slog.LevelWarn)
-	case "ERROR":
-		logLevel.Set(slog.LevelError)
-	default:
-		logLevel.Set(slog.LevelInfo)
-	}
 
 	mc := Metrical{}
 	_, err := toml.Decode(configContent, &mc)
@@ -176,6 +175,26 @@ func main() {
 	if _, err := toml.Decode(configContent, &mc); err != nil {
 		panic(err)
 	}
+
+	logWriter := io.Discard
+	if mc.Log.Stdout {
+		logWriter = os.Stdout
+	}
+	if mc.Log.Filename != "" {
+		logFile, err := os.OpenFile(mc.Log.Filename, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(fmt.Sprintf("Failed to open log file %s: %v", mc.Log.Filename, err))
+		}
+		if mc.Log.Stdout {
+			logWriter = io.MultiWriter(logWriter, logFile)
+		} else {
+			logWriter = logFile
+		}
+	}
+
+	logHandler := slog.NewTextHandler(logWriter, &slog.HandlerOptions{Level: mc.Log.Level.Level()})
+	slog.SetDefault(slog.New(logHandler))
+
 	if mc.Data.Store != "" {
 		if strings.HasPrefix(mc.Data.Store, "sqlite:") {
 			path := strings.TrimPrefix(mc.Data.Store, "sqlite:")
@@ -212,26 +231,32 @@ func main() {
 	if mc.Http.Listen != "" {
 		fileSvrFS := http.FileServerFS(staticFS)
 		mux := http.NewServeMux()
-		if path := mc.Http.DashboardPath; path != "" {
-			path = strings.TrimSuffix(path, "/") + "/"
-			mux.Handle(path, mc.makeDashboard())
+		for _, cfg := range mc.Http.Dashboard {
+			if path := cfg.Path; path != "" {
+				path = strings.TrimSuffix(path, "/") + "/"
+				mux.Handle(path, mc.makeDashboard())
+				slog.Info("- Dashboard " + mc.Http.AdvAddr + path)
+			}
 		}
 		for _, cfg := range mc.Http.Tails {
 			path := strings.TrimSuffix(cfg.Path, "/") + "/"
 			for i, v := range cfg.Files {
 				v.Filename = strings.ReplaceAll(v.Filename, "~", os.Getenv("HOME"))
-				v.Filename = strings.ReplaceAll(v.Filename, "${log-filename}", logFilename)
+				v.Filename = strings.ReplaceAll(v.Filename, "${log-filename}", mc.Log.Filename)
 				cfg.Files[i] = v
 			}
 			mux.Handle(path, mc.makeTail(path, cfg.Files))
+			slog.Info("- Tail " + mc.Http.AdvAddr + path)
 		}
 		for _, cfg := range mc.Http.Terms {
 			path := strings.TrimSuffix(cfg.Path, "/") + "/"
 			mux.Handle(path, mc.makeTerminal(path, cfg.Command, cfg.Args, cfg.Dir))
+			slog.Info("- Term " + mc.Http.AdvAddr + path)
 		}
 		for _, cfg := range mc.Http.SSHs {
 			path := strings.TrimSuffix(cfg.Path, "/") + "/"
-			mux.Handle(path, mc.makeSSH(path, cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Keyfile, "tail -F /var/log/syslog"))
+			mux.Handle(path, mc.makeSSH(path, cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Keyfile, cfg.Command))
+			slog.Info("- SSH " + mc.Http.AdvAddr + path)
 		}
 		mux.Handle("/static/", fileSvrFS)
 		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
@@ -245,7 +270,7 @@ func main() {
 		}
 		defer svr.Close()
 		go func() {
-			slog.Info("Starting HTTP server on " + mc.Http.AdvAddr + mc.Http.DashboardPath)
+			slog.Info("Starting HTTP server " + mc.Http.AdvAddr + " ...")
 			if err := svr.ListenAndServe(); err != nil {
 				if err == http.ErrServerClosed {
 					slog.Info("HTTP server closed")
@@ -295,7 +320,7 @@ func (mc Metrical) genConfig(filename string) {
 		}
 		defer fd.Close()
 	}
-	fmt.Fprintln(fd, "# This is the default configuration file for metrical.")
+	fmt.Fprintln(fd, "# This is the sample configuration file for metrical.")
 	fmt.Fprintln(fd, configContent)
 	fmt.Fprintln(fd)
 	registry.GenerateSampleConfig(fd)
@@ -419,6 +444,7 @@ func (mc *Metrical) makeTerminal(cutPrefix string, cmd string, args []string, di
 			Dir:     dir,
 		},
 		webterm.WithCutPrefix(cutPrefix),
+		webterm.WithFontSize(11),
 		webterm.WithTheme(webterm.ThemeDracula),
 	)
 	return term
@@ -444,6 +470,7 @@ func (mc *Metrical) makeSSH(cutPrefix string, host string, port int, user string
 			Command:  cmd,
 		},
 		webterm.WithCutPrefix(cutPrefix),
+		webterm.WithFontSize(11),
 		webterm.WithTheme(webterm.ThemeMolokai),
 	)
 	return term

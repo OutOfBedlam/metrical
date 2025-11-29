@@ -1,3 +1,65 @@
+[log]
+  ## Logging configuration
+  ## 'stdout' enables logging to standard output
+  stdout = true
+  
+  ## 'filename' is the path to the log file
+  ## if empty, logging to file is disabled
+  filename = "./metrical.log"
+  
+  ## 'level' sets the logging level
+  ## valid levels are: DEBUG, INFO, WARN, ERROR
+  level = "INFO"
+
+[http]
+  ## HTTP server configuration
+  ## 'listen' is the address to bind to (e.g. ":3000" for all interfaces on port 3000)
+  ## if listen is empty, no HTTP server will be started
+  listen = ":3000"
+  ## 'adv_addr' is the address to advertise to clients (e.g. "http://myhost:3000")
+  adv_addr = "http://localhost:3000"
+  ## 'dashboard' is the path to the dashboard (e.g. "/dashboard")
+  ## if 'dashboard' is empty, no dashboard will be served
+  [[http.dashboard]]
+    path = "/dashboard"
+  ##
+  ## tails
+  # [[http.tail]]
+  #   path = "/term/logs"
+  #   [[http.tail.file]]
+  #     filename = "${log-filename}"
+  #     label = "metrical"
+  #     highlights = ["level", "slog-text"]
+  #   [[http.tail.file]]
+  #     filename = "/var/log/syslog"
+  #     label = "syslog"
+  #     highlights = ["syslog", "level"]
+  #   [[http.tail.file]]
+  #     filename = "/var/log/auth.log"
+  #     label = "auth.log"
+  #     highlights = ["level"]
+  #[[http.term]]
+  #  path = "/term/home"
+  #  command = "/usr/bin/zsh"
+  #  args = ["-il"]
+  #  dir = "/home/user_id"
+  #[[http.term]]
+  #  path = "/term/htop"
+  #  command = "/usr/bin/htop"
+  #  args = []
+  #  dir = "/home/user_id"
+  #[[http.ssh]]
+  #  path = "/term/ssh-host"
+  #  host ="your.ssh.host"
+  #  port = 22
+  #  user = "your_id"
+  #  password = "your_password_here"
+  #  keyfile = "/home/your_id/.ssh/id_rsa"
+  ##
+  ## If 'ssh.command' is empty, it will start a shell session
+  ## otherwise, it will run the specified command upon connection
+  #  command = "tail -F /var/log/syslog"
+
 [data]
   sampling_interval = "10s"
   input_buffer = 1000
@@ -45,14 +107,3 @@
     title = "480 Days of 1 day"
     interval = "24h"
     length = 240 # 480 days
-
-[http]
-  ## HTTP server configuration
-  ## 'listen' is the address to bind to (e.g. ":3000" for all interfaces on port 3000)
-  ## if listen is empty, no HTTP server will be started
-  listen = ":3000"
-  ## 'adv_addr' is the address to advertise to clients (e.g. "http://myhost:3000")
-  adv_addr = "http://localhost:3000"
-  ## 'dashboard' is the path to the dashboard (e.g. "/dashboard")
-  ## if 'dashboard' is empty, no dashboard will be served
-  dashboard = "/dashboard"
