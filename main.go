@@ -111,13 +111,22 @@ type WebTermConfig struct {
 }
 
 type WebSSHConfig struct {
-	Path     string `toml:"path"`
+	Path     string      `toml:"path"`
+	Host     string      `toml:"host"`
+	Port     int         `toml:"port"`
+	User     string      `toml:"user"`
+	Password string      `toml:"password"`
+	Keyfile  string      `toml:"keyfile"`
+	Via      []WebSSHVia `toml:"via"`
+	Command  string      `toml:"command"`
+}
+
+type WebSSHVia struct {
 	Host     string `toml:"host"`
 	Port     int    `toml:"port"`
 	User     string `toml:"user"`
 	Password string `toml:"password"`
 	Keyfile  string `toml:"keyfile"`
-	Command  string `toml:"command"`
 }
 
 type DataConfig struct {
@@ -255,7 +264,14 @@ func main() {
 		}
 		for _, cfg := range mc.Http.SSHs {
 			path := strings.TrimSuffix(cfg.Path, "/") + "/"
-			mux.Handle(path, mc.makeSSH(path, cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Keyfile, cfg.Command))
+			via := append(cfg.Via, WebSSHVia{
+				Host:     cfg.Host,
+				Port:     cfg.Port,
+				User:     cfg.User,
+				Password: cfg.Password,
+				Keyfile:  cfg.Keyfile,
+			})
+			mux.Handle(path, mc.makeSSH(path, via, cfg.Command))
 			slog.Info("- SSH " + mc.Http.AdvAddr + path)
 		}
 		mux.Handle("/static/", fileSvrFS)
@@ -450,22 +466,29 @@ func (mc *Metrical) makeTerminal(cutPrefix string, cmd string, args []string, di
 	return term
 }
 
-func (mc *Metrical) makeSSH(cutPrefix string, host string, port int, user string, pass string, keyfile string, cmd string) http.Handler {
-	auth := []ssh.AuthMethod{}
-	if pass != "" {
-		auth = append(auth, webssh.AuthPassword(pass))
-	}
-	if keyfile != "" {
-		key, _ := os.ReadFile(keyfile)
-		auth = append(auth, webssh.AuthPrivateKey(key))
+func (mc *Metrical) makeSSH(cutPrefix string, vai []WebSSHVia, cmd string) http.Handler {
+	hops := webssh.Hops{}
+	for _, v := range vai {
+		auth := []ssh.AuthMethod{}
+		if v.Password != "" {
+			auth = append(auth, webssh.AuthPassword(v.Password))
+		}
+		if v.Keyfile != "" {
+			key, _ := os.ReadFile(v.Keyfile)
+			auth = append(auth, webssh.AuthPrivateKey(key))
+		}
+		hop := webssh.Hop{
+			Host: v.Host,
+			Port: v.Port,
+			User: v.User,
+			Auth: auth,
+		}
+		hops = append(hops, hop)
 	}
 
 	term := webterm.New(
 		&webssh.WebSSH{
-			Host:     host,
-			Port:     port,
-			User:     user,
-			Auth:     auth,
+			Hops:     hops,
 			TermType: "xterm-256color",
 			Command:  cmd,
 		},
