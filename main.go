@@ -28,6 +28,7 @@ import (
 	"github.com/OutOfBedlam/metrical/store/sqlite"
 	"github.com/OutOfBedlam/webterm"
 	"github.com/OutOfBedlam/webterm/webexec"
+	"github.com/OutOfBedlam/webterm/webport"
 	"github.com/OutOfBedlam/webterm/webssh"
 	"github.com/OutOfBedlam/webterm/webtail"
 	"golang.org/x/crypto/ssh"
@@ -86,6 +87,7 @@ type HttpConfig struct {
 	Tails     []WebTailConfig   `toml:"tail"`
 	Terms     []WebTermConfig   `toml:"term"`
 	SSHs      []WebSSHConfig    `toml:"ssh"`
+	Ports     []WebPortConfig   `toml:"port"`
 }
 
 type DashboardConfig struct {
@@ -127,6 +129,11 @@ type WebSSHVia struct {
 	User     string `toml:"user"`
 	Password string `toml:"password"`
 	Keyfile  string `toml:"keyfile"`
+}
+
+type WebPortConfig struct {
+	Path       string `toml:"path"`
+	RemoteAddr string `toml:"remote_addr"`
 }
 
 type DataConfig struct {
@@ -274,6 +281,19 @@ func main() {
 			mux.Handle(path, mc.makeSSH(path, via, cfg.Command))
 			slog.Info("- SSH " + mc.Http.AdvAddr + path)
 		}
+		for _, cfg := range mc.Http.Ports {
+			path := strings.TrimSuffix(cfg.Path, "/") + "/"
+			wp, err := webport.New(webport.Config{
+				RemoteAddr: cfg.RemoteAddr,
+			})
+			if err != nil {
+				slog.Error("Failed to create webport for "+path, "error", err)
+				continue
+			}
+			slog.Info("- Port " + mc.Http.AdvAddr + path + " -> " + cfg.RemoteAddr)
+			mux.HandleFunc(path, wp.HandleHTTP)
+		}
+
 		mux.Handle("/static/", fileSvrFS)
 		mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "static/favicon.ico")

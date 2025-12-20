@@ -76,6 +76,12 @@
   #  password = "jump_password1"
   #  keyfile = "/home/your_id/.ssh/id_rsa"
 
+  ##
+  ## WebSocket base port forwarding
+  #[[http.port]]
+  #  path = "/term/agent"
+  #  remote_addr = "tcp://127.0.0.1:5654"
+
 [data]
   sampling_interval = "10s"
   input_buffer = 1000
